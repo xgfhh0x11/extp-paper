@@ -1,0 +1,254 @@
+% =====================================================================
+% EXTp Paper — Verified References
+% All entries cross-checked against publisher/venue records.
+% =====================================================================
+
+% --- THEORETICAL FOUNDATIONS ---
+
+@book{pearl2009causality,
+  author    = {Judea Pearl},
+  title     = {Causality: Models, Reasoning, and Inference},
+  edition   = {2nd},
+  publisher = {Cambridge University Press},
+  year      = {2009},
+  address   = {Cambridge, UK},
+}
+
+@article{halpern2005causes,
+  author  = {Joseph Y. Halpern and Judea Pearl},
+  title   = {Causes and Explanations: A Structural-Model Approach.
+             {P}art {I}: {C}auses},
+  journal = {The British Journal for the Philosophy of Science},
+  volume  = {56},
+  number  = {4},
+  pages   = {843--887},
+  year    = {2005},
+}
+
+% --- seL4 ---
+
+@inproceedings{klein2009sel4,
+  author    = {Gerwin Klein and Kevin Elphinstone and Gernot Heiser and
+               June Andronick and David Cock and Philip Derrin and
+               Dhammika Elkaduwe and Kai Engelhardt and Rafal Kolanski and
+               Michael Norrish and Thomas Sewell and Harvey Tuch and
+               Simon Winwood},
+  title     = {{seL4}: Formal Verification of an {OS} Kernel},
+  booktitle = {Proceedings of the 22nd ACM Symposium on Operating
+               Systems Principles (SOSP)},
+  pages     = {207--220},
+  year      = {2009},
+  publisher = {ACM},
+  address   = {Big Sky, MT, USA},
+}
+
+@article{klein2014sel4,
+  author  = {Gerwin Klein and June Andronick and Kevin Elphinstone and
+             Toby Murray and Thomas Sewell and Rafal Kolanski and
+             Gernot Heiser},
+  title   = {Comprehensive Formal Verification of an {OS} Microkernel},
+  journal = {ACM Transactions on Computer Systems},
+  volume  = {32},
+  number  = {1},
+  pages   = {2:1--2:70},
+  year    = {2014},
+  publisher = {ACM},
+}
+
+% --- COUNTERFACTUAL / DIFFERENTIAL EXPLOIT ANALYSIS ---
+
+@inproceedings{fariha2020aid,
+  author    = {Anna Fariha and Suman Nath and Alexandra Meliou},
+  title     = {Causality-Guided Adaptive Interventional Debugging},
+  booktitle = {Proceedings of the 2020 International Conference on
+               Management of Data (SIGMOD)},
+  pages     = {431--446},
+  year      = {2020},
+  publisher = {ACM},
+  doi       = {10.1145/3318464.3389694},
+}
+
+@inproceedings{zhang2024cachewarp,
+  author    = {Ruiyi Zhang and Lukas Gerlach and Daniel Weber and
+               Lorenz Hetterich and Youheng L\"{u} and Andreas Kogler and
+               Michael Schwarz},
+  title     = {{CacheWarp}: Software-based Fault Injection using
+               Selective State Reset},
+  booktitle = {Proceedings of the 33rd USENIX Security Symposium
+               (USENIX Security)},
+  pages     = {1135--1151},
+  year      = {2024},
+  publisher = {USENIX Association},
+  address   = {Philadelphia, PA, USA},
+}
+
+@inproceedings{schlueter2024wesee,
+  author    = {Benedict Schl\"{u}ter and Supraja Sridhara and
+               Andrin Bertschi and Shweta Shinde},
+  title     = {{WeSee}: Using Malicious \#{VC} Interrupts to Break
+               {AMD} {SEV-SNP}},
+  booktitle = {Proceedings of the 45th IEEE Symposium on Security
+               and Privacy (S\&P)},
+  year      = {2024},
+  publisher = {IEEE},
+}
+
+@inproceedings{schlueter2024heckler,
+  author    = {Benedict Schl\"{u}ter and Supraja Sridhara and
+               Mark Kuhne and Andrin Bertschi and Shweta Shinde},
+  title     = {{Heckler}: Breaking Confidential {VMs} with Malicious
+               Interrupts},
+  booktitle = {Proceedings of the 33rd USENIX Security Symposium
+               (USENIX Security)},
+  year      = {2024},
+  publisher = {USENIX Association},
+}
+
+% --- PEARL-GROUNDED SECURITY (KEY NOVELTY DEFENSE) ---
+
+@article{soloviev2021nested,
+  author  = {Matvey Soloviev and Joseph Y. Halpern},
+  title   = {Security Properties as Nested Causal Statements},
+  journal = {CoRR},
+  volume  = {abs/2104.00872},
+  year    = {2021},
+  note    = {arXiv preprint, 8 pages},
+}
+
+@inproceedings{soloviev2024modal,
+  author    = {Matvey Soloviev and Musard Balliu and Roberto Guanciale},
+  title     = {Security Properties through the Lens of Modal Logic},
+  booktitle = {Proceedings of the 37th IEEE Computer Security
+               Foundations Symposium (CSF)},
+  pages     = {340--355},
+  year      = {2024},
+  publisher = {IEEE},
+}
+
+% --- HYPERVISOR EXPLOIT SURFACE (CVE/advisory references) ---
+
+@misc{tandasat2024hvci,
+  author = {Satoshi Tanda and Andrea Allievi},
+  title  = {{CVE-2024-21305}: {HVCI} Bypass via Non-Secure {VMCS}
+            Configuration},
+  year   = {2024},
+  note   = {MSRC Advisory; technical writeup at
+            \url{https://tandasat.github.io/blog/2024/01/15/CVE-2024-21305.html}},
+}
+
+@misc{broadcom2025vmsa,
+  author = {{Broadcom}},
+  title  = {{VMSA-2025-0004}: {VMware} {ESXi}, {Workstation}, and
+            {Fusion} Updates Address Multiple Vulnerabilities
+            ({CVE-2025-22224}, {CVE-2025-22225}, {CVE-2025-22226})},
+  year   = {2025},
+  note   = {Broadcom Security Advisory, 4 March 2025},
+}
+
+@inproceedings{barberis2025trainingsolo,
+  author    = {Sander Wiebing and Cristiano Giuffrida and others},
+  title     = {Training Solo: {O}n the Limitations of Domain Isolation
+               Against Spectre-v2 Attacks},
+  booktitle = {Proceedings of the 46th IEEE Symposium on Security
+               and Privacy (S\&P)},
+  year      = {2025},
+  publisher = {IEEE},
+  note      = {VUSec, Vrije Universiteit Amsterdam.
+               CVE-2024-28956, CVE-2025-24495},
+}
+
+@misc{vmscape2025,
+  author = {{ETH Zurich Comsec Group}},
+  title  = {{VMScape}: Exposing and Exploiting Incomplete Branch
+            Predictor Isolation in Cloud Environments},
+  year   = {2025},
+  note   = {CVE-2025-40300, September 2025;
+            \url{https://github.com/comsec-group/vmscape}},
+}
+
+@misc{xsa472,
+  author = {{Xen Project}},
+  title  = {{XSA-472}: Multiple Vulnerabilities in the {V}iridian
+            Interface},
+  year   = {2025},
+  note   = {Xen Security Advisory, CVE-2025-27466, CVE-2025-58142,
+            CVE-2025-58143; \url{https://xenbits.xen.org/xsa/advisory-472.html}},
+}
+
+% --- FORMAL METHODS FOR HYPERVISORS ---
+
+@inproceedings{gu2016certikos,
+  author    = {Ronghui Gu and Zhong Shao and Hao Chen and
+               Xiongnan (Newman) Wu and Jieung Kim and
+               Vilhelm Sj\"{o}berg and David Costanzo},
+  title     = {{CertiKOS}: An Extensible Architecture for Building
+               Certified Concurrent {OS} Kernels},
+  booktitle = {Proceedings of the 12th USENIX Symposium on Operating
+               Systems Design and Implementation (OSDI)},
+  pages     = {653--669},
+  year      = {2016},
+  publisher = {USENIX Association},
+  address   = {Savannah, GA, USA},
+}
+
+@inproceedings{ferraiuolo2017komodo,
+  author    = {Andrew Ferraiuolo and Andrew Baumann and
+               Chris Hawblitzel and Bryan Parno},
+  title     = {{Komodo}: Using Verification to Disentangle
+               Secure-Enclave Hardware from Software},
+  booktitle = {Proceedings of the 26th ACM Symposium on Operating
+               Systems Principles (SOSP)},
+  pages     = {287--305},
+  year      = {2017},
+  publisher = {ACM},
+  address   = {Shanghai, China},
+}
+
+% --- CAUSAL INFERENCE IN SECURITY (BACKTRACKER LINEAGE) ---
+
+@inproceedings{king2003backtracking,
+  author    = {Samuel T. King and Peter M. Chen},
+  title     = {Backtracking Intrusions},
+  booktitle = {Proceedings of the 19th ACM Symposium on Operating
+               Systems Principles (SOSP)},
+  pages     = {223--236},
+  year      = {2003},
+  publisher = {ACM},
+  doi       = {10.1145/945445.945467},
+}
+
+@inproceedings{kwon2018mci,
+  author    = {Yonghwi Kwon and Fei Wang and Weihang Wang and
+               Kyu Hyung Lee and Wen-Chuan Lee and Shiqing Ma and
+               Xiangyu Zhang and Dongyan Xu and Somesh Jha and
+               Gabriela F. Ciocarlie and Ashish Gehani and
+               Vinod Yegneswaran},
+  title     = {{MCI}: Modeling-based Causality Inference in Audit
+               Logging for Attack Investigation},
+  booktitle = {Proceedings of the 25th Network and Distributed System
+               Security Symposium (NDSS)},
+  year      = {2018},
+  publisher = {Internet Society},
+}
+
+% --- MULTI-VCPU RACE EXPLOITS (cited in §7.1) ---
+
+@misc{linuxkernel2025chronomaly,
+  author = {{Linux Kernel Security}},
+  title  = {{CVE-2025-38352}: {POSIX} {CPU} Timer Use-After-Free
+            Race Between {\tt handle\_posix\_cpu\_timers()} and
+            {\tt posix\_cpu\_timer\_del()}},
+  year   = {2025},
+  note   = {Linux kernel TOCTOU race condition;
+            \url{https://nvd.nist.gov/vuln/detail/CVE-2025-38352}},
+}
+
+@misc{linuxkernel2025int3reinject,
+  author = {{Linux Kernel Security}},
+  title  = {{CVE-2025-68259}: {KVM} {SVM} {INT3} Re-injection Race
+            with Concurrent {\tt text\_poke}},
+  year   = {2025},
+  note   = {Linux kernel KVM/SVM software-interrupt re-injection
+            bug; upstream fix in commit 4da3768e1820 (6.19-rc1);
+            \url{https://nvd.nist.gov/vuln/detail/CVE-2025-68259}},
+}

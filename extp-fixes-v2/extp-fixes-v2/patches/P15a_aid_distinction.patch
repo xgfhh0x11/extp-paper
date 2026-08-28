@@ -1,0 +1,58 @@
+% =====================================================================
+% PATCH P15a — §VIII-A: AID Distinction (Substrate + Antecedents)
+% =====================================================================
+% Master ID: (new — second wave)
+% File: extp.tex
+% Approximate line: 1514-1516 (after PATCH E2 was applied in wave 1)
+%
+% PURPOSE: Wave 1's E2 patch hedged the "first such theorem" claim by
+% anchoring to "verified microkernel substrate". But the distinction
+% vs AID is sharper than just substrate: AID also offers probabilistic
+% bounds, but its bounds are NOT conditioned on an enumerated
+% antecedent envelope. CST's claim structure is:
+%   "admissibility under enumerated antecedents (A1-A4) over a
+%    verified substrate"
+% Both halves matter. This patch makes the distinction explicit.
+%
+% DEPENDENCY: Apply AFTER wave 1's E2 patch. The OLD string here is
+% the NEW string from E2.
+% =====================================================================
+
+%%% OLD %%%
+% statistical setting; EXTp targets hypervisor exploit execution on a
+% formally verified microkernel in a deterministic single-configuration
+% replay setting; and AID does not provide a formal soundness theorem
+% for its causal attributions. EXTp's CST is the first soundness
+% theorem for causal exploit attribution grounded in a verified
+% microkernel substrate (seL4's L4.verified~\cite{klein2014sel4}).
+
+%%% NEW %%%
+% statistical setting; EXTp targets hypervisor exploit execution on a
+% formally verified microkernel in a deterministic single-configuration
+% replay setting; and AID does not provide a formal soundness theorem
+% for its causal attributions. EXTp's CST is the first soundness
+% theorem for causal exploit attribution that combines two
+% ingredients absent from AID: a formally verified computational
+% substrate (seL4's L4.verified~\cite{klein2014sel4}), and admissibility
+% conditioned on an enumerated antecedent envelope $(A_1, A_2, A_3, A_4)$
+% with bounds propagated per-claim through the validity envelope
+% $\mathcal{E}$. The distinction is not mechanization (CST's proof
+% remains semi-formal pending the Isabelle pathway of
+% \S\ref{sec:discussion-isabelle}) but the conditioning structure:
+% AID issues bounded probabilistic attributions; CST issues
+% attributions whose bounds are conditioned on a named, falsifiable
+% set of structural and empirical antecedents.
+
+% NOTE: Three new clauses:
+%   1. "two ingredients absent from AID" — names them explicitly.
+%   2. "(seL4's L4.verified)" + enumerated antecedents $(A_1...A_4)$.
+%   3. Disclaims that the difference is "mechanization" — directly
+%      addresses the reviewer's expected attack ("you call it a
+%      theorem but it's not machine-checked"). The pre-emption is
+%      "yes, mechanization is deferred (§VII-C), but the structural
+%      claim — conditioning on enumerated antecedents — is the
+%      novelty, not mechanization status."
+%
+% This is the cleanest defensive framing because it shifts the
+% argument from "are you mechanized?" (a no) to "are your bounds
+% conditioned?" (a yes, demonstrably).

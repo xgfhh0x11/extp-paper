@@ -1,0 +1,55 @@
+% =====================================================================
+% PATCH P16 — §II-C: AC3 / Causal-Link Legitimacy Defense
+% =====================================================================
+% Master ID: (new — second wave)
+% File: extp.tex
+% Approximate line: 293-295 (in §II-C, the AC3 deferral sentence)
+%
+% PURPOSE: Current paper defers AC3 (minimality) honestly — "CST
+% produces causal-link claims, not causal-explanation claims" —
+% but doesn't defend WHY causal-link claims are independently
+% meaningful without minimality. A reviewer can ask: "without
+% minimality, in what sense is this 'causal attribution' rather
+% than just 'correlation'?"
+%
+% This patch adds one defensive sentence that anchors the legitimacy
+% of causal-link claims in their downstream use cases (mitigation
+% verification, fuzzing) — both of which need attribution but not
+% explanation.
+% =====================================================================
+
+%%% OLD %%%
+% EXTp's CST establishes AC1 and AC2 for every
+% admissible atomic claim. AC3 (minimality) is outside CST v1.0 scope:
+% CST produces \emph{causal-link} claims, not \emph{causal-explanation}
+% claims in the Halpern-Pearl sense.
+
+%%% NEW %%%
+% EXTp's CST establishes AC1 and AC2 for every
+% admissible atomic claim. AC3 (minimality) is outside CST v1.0 scope:
+% CST produces \emph{causal-link} claims, not \emph{causal-explanation}
+% claims in the Halpern-Pearl sense. The distinction is consequential
+% but the omission is principled: CST's downstream applications
+% (mitigation verification and counterfactual fuzzing,
+% \S\ref{sec:discussion-fuzz}) require attribution at individual
+% intervention points --- ``did $\dox{x'}$ cause the divergence?'' ---
+% not identification of minimal sufficient cause sets. A
+% mitigation-verification workflow needs to know whether patching
+% parameter $X$ severs the causal pathway; whether $\{X\}$ is the
+% minimal such set is operationally irrelevant. AC3 minimality
+% becomes essential only when CST claims are used to construct
+% human-readable explanations, a separate use case that EXTp does
+% not target in v1.0.
+
+% NOTE: One added paragraph-extending sentence + two clarifying
+% sentences. The argument structure is:
+%   1. Distinction is consequential BUT the omission is principled.
+%   2. Concrete use cases (mitigation verification, fuzzing) need
+%      attribution but not explanation.
+%   3. AC3 only matters when targeting human-readable explanations,
+%      which CST v1.0 does not target.
+%
+% This pre-empts the "minimality-less attribution isn't really
+% causal" reviewer reading by separating the two use modes
+% (operational attribution vs. semantic explanation) and showing
+% CST is honest about which mode it serves.

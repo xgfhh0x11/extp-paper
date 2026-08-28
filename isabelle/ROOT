@@ -1,0 +1,12 @@
+session "EXTp_CST" = "HOL" +
+  description \<open>
+    EXTp Counterfactual Soundness Theorem -- Isabelle/HOL mekanizasyonu.
+    Kosullu cekirdek (Faz 0-2) + tanik ayrimi (b) + A2 scope-completeness (d)
+    + tanik-duyarli ensemble (f) + gercek sweep verisi (h) + silent-leak
+    scope siniri (i) + seL4 arayuz iskeleti (g). Observable yuzeyi 64/32-bit word (e).
+  \<close>
+  options [document = false]
+  sessions
+    "HOL-Library"
+  theories
+    CST_Model

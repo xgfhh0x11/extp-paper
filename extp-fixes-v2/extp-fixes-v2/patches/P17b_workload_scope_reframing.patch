@@ -1,0 +1,72 @@
+% =====================================================================
+% PATCH P17b — §VI-D: Single Workload Class Defensive Reframing
+% =====================================================================
+% Master ID: (new — second wave)
+% File: extp.tex
+% Approximate line: 1333-1337
+%
+% PURPOSE: Current limitations entry is too terse: "LLC-resident and
+% DRAM-resident workload classes are not yet characterized; ∆*
+% portability to these classes is not established." This reads as a
+% gap. Reviewer R2 (hypervisor security) will treat as substantive
+% weakness.
+%
+% The reframing turns the limitation into a SCOPED CALIBRATION
+% statement: ∆* is calibrated for L1/L2-pchase workloads; LLC/DRAM
+% are a separate experimental track that doesn't undermine the
+% claims made for the calibrated track. This is the same epistemic
+% discipline as the A1-modulo flag: name the boundary, don't gloss
+% over it.
+%
+% NOTE: This is the "(b)" version — assumes LLC-pchase data is NOT
+% yet collected. If empirical data becomes available later (third
+% wave), this paragraph gets replaced with a stronger version that
+% adds Table V rows and shifts the limitation entry to DRAM only.
+% =====================================================================
+
+%%% OLD %%%
+% \textbf{Single workload class.} All $\sigbase$ and FPR calibration
+% is against $L_1$-pchase and $L_2$-pchase guest workloads.
+% LLC-resident and DRAM-resident workload classes are not yet
+% characterized; $\Dstar$ portability to these classes is not
+% established.
+
+%%% NEW %%%
+% \textbf{Workload-class calibration scope.} All $\sigbase$ and FPR
+% calibration in this paper is established for the $L_1$-pchase and
+% $L_2$-pchase guest workload classes (plus the synthetic-guest
+% class used in \S\ref{sec:eval-demo}). LLC-resident and
+% DRAM-resident workload classes constitute a separate experimental
+% track --- $\Dstar$ calibration for these classes is mechanically
+% straightforward (re-running the MI calibration protocol of
+% \S\ref{sec:mi} with the new workload binary) but has not been
+% performed for this submission. CST claims issued in this paper
+% are scoped to the calibrated workload classes via the validity
+% envelope $\mathcal{E}$'s \texttt{wl-class} field
+% (\S\ref{sec:framework}); a claim issued under
+% \texttt{wl-class = L1-pchase} carries no implicit transportability
+% guarantee to \texttt{wl-class = LLC-resident}. Adding LLC- and
+% DRAM-resident calibrations to extend the validated envelope is
+% future work; the soundness machinery is invariant under such
+% extensions, only the calibration constants change.
+
+% NOTE: Four changes:
+%   1. Title change: "Single workload class" -> "Workload-class
+%      calibration scope". The new title FRAMES this as a scope
+%      statement, not a gap.
+%   2. Mention synthetic-guest class (which is technically a third
+%      calibrated class — gives the limitation more empirical weight
+%      to push against).
+%   3. Cross-reference validity envelope's wl-class field, showing
+%      that the scope is OPERATIONALIZED in CST claims rather than
+%      glossed over.
+%   4. Closing sentence: "soundness machinery is invariant under
+%      such extensions, only the calibration constants change."
+%      This is the key insight — adding LLC-pchase later doesn't
+%      change the theorem, only widens the envelope. Reviewer
+%      reading this understands: this is engineering work, not a
+%      methodological hole.
+%
+% If LLC-pchase data lands in a third wave, this paragraph gets
+% rewritten to include the new Table V rows; the soundness claim
+% stays unchanged.

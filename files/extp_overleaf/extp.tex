@@ -1,0 +1,2087 @@
+% =====================================================================
+% EXTp: A Soundness Theorem for Counterfactual Exploit Replay on
+% Formally Verified Microkernels
+%
+% NDSS 2027 Fall Cycle submission
+% Deadline: 19 August 2026
+% Target: 13 pp main body, 18 pp camera-ready (double-column)
+%
+% CLASS SELECTION ----------------------------------------------------
+% To compile with the official NDSS template:
+%   1. Download the NDSS 2026 template zip from
+%      https://www.ndss-symposium.org/ndss2026/submissions/templates/
+%   2. Upload ndss.cls (and any auxiliary files) to this Overleaf project
+%   3. Use:  \documentclass[conference]{ndss}
+%
+% For preview/early drafting without ndss.cls, use IEEEtran (geometry
+% is close but not exact; switch to ndss.cls before final submission).
+% =====================================================================
+
+% --- ACTIVE CLASS (swap when ndss.cls is uploaded) ---
+\documentclass[conference]{IEEEtran}
+% \documentclass[conference]{ndss}
+
+% --- PACKAGES (work with both classes) ---
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, fit, calc, shapes.geometric}
+\usepackage{hyperref}
+\usepackage{cleveref}
+
+% --- THEOREM ENVIRONMENTS ---
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+
+% --- CUSTOM COMMANDS ---
+\newcommand{\Korig}{T_\text{orig}}
+\newcommand{\Tcf}{T_\text{cf}}
+\newcommand{\Kverified}{\mathcal{K}_\text{verified}}
+\newcommand{\Kextended}{\mathcal{K}_\text{extended}}
+\newcommand{\Kint}{\mathcal{K}_\text{int}}
+\newcommand{\Kfwk}{\mathcal{K}_\text{fwk}}
+\newcommand{\sigbase}{\hat{\sigma}_\text{baseline}}
+\newcommand{\Dstar}{\Delta^{*}}
+\newcommand{\arealized}{\alpha_\text{realized}}
+\newcommand{\scoreS}{\text{score}_S}
+\newcommand{\dox}[1]{\text{do}(X{=}#1)}
+
+% --- HYPHENATION (minor cleanup for narrow columns) ---
+\hyphenation{counter-factual micro-architectural hyper-visor}
+
+% =====================================================================
+\begin{document}
+
+\title{EXTp: A Soundness Theorem for Counterfactual Exploit Replay on Formally Verified Microkernels}
+
+% --- ANONYMOUS AUTHOR BLOCK (NDSS double-blind requirement) ---
+\author{\IEEEauthorblockN{Anonymous Authors}\\
+\IEEEauthorblockA{Submitted for double-blind review}}
+
+\maketitle
+
+% =====================================================================
+\begin{abstract}
+Counterfactual exploit analysis --- determining which input
+parameter causally produced an observed outcome --- is pervasive
+in security research, but its current practice is epistemically
+unsound. Three gaps separate ``different outcome'' from ``caused
+by the change'': non-deterministic replay noise, replay-machinery
+side-effects, and causal pathways traversing microarchitectural
+state invisible to the analyst's surface. We present EXTp, a
+counterfactual replay framework on bare-metal seL4, and the
+Counterfactual Soundness Theorem (CST) --- the first formal
+soundness theorem for counterfactual causal attribution in exploit
+analysis. EXTp realizes three observable properties: Capability
+Separation (Pearl modularity; Clopper-Pearson bound
+${\leq}0.37\%$ at $N{=}998$), Strong Observational Equivalence
+(replay determinism, $\scoreS{=}1.0000$ over $N{=}34$ cross-boot
+trials), and Measurement Interference (calibrated timing threshold,
+realized false-positive rate $0.61\%$--$2.78\%$). CST proves their
+composition grounds Pearl/Halpern-Pearl causal attribution within
+enumerated epistemic bounds; CST v1.0 establishes soundness under
+single-VCPU intervention scope and bare-metal microcode-stable
+configurations, with multi-VCPU and cross-configuration extensions
+charted as future work. A synthetic analog modeled on the
+CrackArmor confused-deputy pattern, executed on bare-metal Intel
+Alder Lake, exercises the pipeline end-to-end and shows the
+framework correctly detecting its own A1-modulo violations.
+\end{abstract}
+
+% =====================================================================
+\section{Introduction}\label{sec:intro}
+
+Determining \emph{why} an exploit succeeds is harder than determining
+\emph{that} it succeeds. A crash, a privilege escalation, a sandbox
+escape --- these are observable. Whether a specific input parameter
+\emph{caused} the outcome, or whether a different parameter value
+would have prevented it, is a counterfactual question. Current
+practice answers it informally: re-run with a modified input, observe
+whether the outcome changes, call it causal. This methodology is
+pervasive, and it is epistemically unsound. Three gaps separate
+``different outcome'' from ``caused by the change'':
+non-deterministic replay noise that can mimic causal signals; replay
+machinery side-effects that confound the measurement; and causal
+pathways that traverse microarchitectural state invisible to the
+analyst's observable surface. Without formal guarantees addressing
+all three, counterfactual exploit analysis is intuition dressed as
+method.
+
+The theoretical machinery to close these gaps exists. Pearl's
+structural causal model~\cite{pearl2009causality} defines the
+$\dox{x'}$ intervention operator and the axioms --- modularity,
+faithfulness, effectiveness --- that make causal attribution provably
+sound. Halpern and Pearl's actual-causation
+conditions~\cite{halpern2005causes} specify precisely when an
+observed outcome is attributable to a named cause. Yet this apparatus
+has not been applied to exploit analysis. The obstacle is structural:
+Pearl's framework is probabilistic and abstract, defined over
+distributions and idealized structural equations. Exploit replay
+operates on concrete microarchitectural traces --- TSC measurements
+with asymmetric noise floors, VM-exit surfaces with finite register
+coverage, capability-mediated VMM machinery with empirical rather
+than axiomatic side-effect bounds. To our knowledge, no prior work
+formally bridges this gap.
+
+We present \textbf{EXTp}, and with it the \textbf{first formal
+soundness theorem for counterfactual causal attribution in exploit
+analysis}. Prior Pearl-applied work in adjacent
+domains~\cite{fariha2020aid} (AID, SIGMOD 2020) demonstrates
+probabilistic causal attribution for database failures but provides
+no soundness theorem; conceptual extensions of the HP
+framework~\cite{soloviev2021nested} provide no operational system.
+CST is the first theorem-grade formalization of admissibility
+under enumerated antecedents on a verified substrate. EXTp is a
+counterfactual replay framework on a bare-metal
+seL4~\cite{klein2009sel4} virtual machine monitor. Its Counterfactual
+Soundness Theorem (CST) proves that, under the formal assumptions
+grounded in EXTp's observable properties, replay-based causal
+attribution satisfies Pearl's effectiveness and composition axioms
+(modularity realized by CapSep, faithfulness subsumed by SOE) and
+Halpern-Pearl's AC1 and AC2 actual-causation conditions --- with
+divergence points (irreversibility inapplicable; determinism strictly
+stronger than faithfulness) declared explicitly rather than elided.
+The result is a system where ``$\dox{x'}$ caused divergence $D$ at
+event $i$'' is not an analyst's intuition but a formally admissible
+claim within an enumerated epistemic envelope.
+
+EXTp achieves this through three observable properties that compose
+into CST. \textbf{Capability Separation (CapSep)} proves intervention
+authority disjointness ($\Kint \cap \Kfwk = \emptyset$), realizing
+Pearl's modularity axiom: $\dox{x'}$ cannot directly modify
+framework-internal state. For seL4's formally verified operations,
+this follows from seL4's Isabelle/HOL proof harness; for extended
+VT-x operations, it is empirically bounded with Clopper-Pearson
+confidence. \textbf{Strong Observational Equivalence (SOE)}
+establishes trajectory-level replay determinism
+($\scoreS = 1.0000$, $N{=}34$ cross-boot trials), a property strictly
+stronger than Pearl's probabilistic faithfulness and sufficient to
+rule out coincidence as an alternative explanation for observed
+divergence. \textbf{Measurement Interference (MI)} derives a
+calibrated timing detection threshold $\Dstar = z_{1-\alpha} \cdot
+\sigbase$ with empirically realized false-positive rate
+$0.61\%$--$2.78\%$, bounding the residual confounding that CapSep
+does not eliminate. CST proves that together these three properties
+are sufficient to ground Pearl-style causal attribution within an
+explicitly enumerated epistemic envelope.
+
+This paper makes four contributions.
+\textbf{(C1)} EXTp: a counterfactual exploit replay framework on
+bare-metal seL4 with four intervention classes and cross-boot replay
+stability $\scoreS = 1.0000$ over $N{=}34$ trials.
+\textbf{(C2)} Three independently verifiable observable properties
+--- CapSep (modularity axiom), SOE (faithfulness/determinism), MI
+(confounder boundedness) --- each making falsifiable claims about a
+distinct dimension of the replay machinery.
+\textbf{(C3)} CST: the first formal soundness theorem for
+counterfactual causal attribution in exploit analysis, with explicit
+Pearl/Halpern-Pearl correspondence, declared divergence points, and a
+semi-formal proof sketch whose formalization path is chartered via
+seL4's existing Isabelle infrastructure.
+\textbf{(C4)} A privilege-check-bypass demonstration modeled on the
+CrackArmor confused-deputy exploit pattern\footnote{The AppArmor
+confused-deputy cluster (9 CVEs); analyzed using EXTp's vault
+infrastructure. Chronomaly (CVE-2025-38352, POSIX CPU timer UAF) is
+a scope boundary example, not a demonstration target; see \S3 Out of
+Scope, item~1.} on bare-metal seL4 showing an end-to-end
+CST-admissible causal attribution from a forged capability token to
+an observable VM-exit divergence.
+
+The remainder of this paper is structured as follows. \S\ref{sec:background}
+provides background on seL4, VT-x VM-exits, and Pearl causality.
+\S\ref{sec:threat} defines the threat model. \S\ref{sec:framework}
+describes EXTp's framework design. \S\ref{sec:properties} states and
+proves the four formal properties. \S\ref{sec:eval} presents the
+evaluation. \S\ref{sec:discussion} discusses scope and downstream
+applications. \S\ref{sec:related} surveys related work.
+\S\ref{sec:conclusion} concludes.
+
+% =====================================================================
+\section{Background}\label{sec:background}
+
+\subsection{seL4 and the Capability Model}
+
+seL4 is a formally verified L4 microkernel whose functional
+correctness, integrity, and confidentiality properties are
+mechanically proven in
+Isabelle/HOL~\cite{klein2009sel4,klein2014sel4}. EXTp uses seL4 as
+its VMM substrate, inheriting the proof as a trust anchor for
+Capability Separation. seL4's capability model partitions authority
+into unforgeable tokens: a thread may only access a resource if it
+holds a capability to that resource, and capabilities are manipulated
+exclusively through kernel-mediated operations.
+
+For EXTp's purposes, two operation sets are distinguished.
+$\Kverified \supseteq \{\text{create}, \text{copy}, \text{revoke},
+\text{destroy}\}$ comprises the cap-table operations that fall
+within seL4's L4.verified formal scope; the listed subset is
+those operations directly relevant to EXTp's intervention surface,
+while $\Kverified$ in full is the larger L4.verified-covered
+API. Their external atomicity --- the property that state
+transitions are observable as single steps from outside the
+kernel --- is established by the Isabelle
+proof~\cite{klein2009sel4}. $\Kextended \supseteq \{\text{MapEPT},
+\text{Unmap}, \text{WriteVMCS}, \text{ReadVMCS}\}$ (full enumeration
+in Appendix~\ref{app:kextended}) comprises the x86-64 VT-x extension
+operations that EXTp's intervention machinery uses directly; these
+lie outside L4.verified's formal scope and their atomicity properties
+are empirically bounded (Clopper-Pearson $95\%$ CI $\leq 10.4\%$ at
+$N{=}34$ cross-boot; the CapSep-level bound $\leq 0.37\%$ at $N{=}998$
+is detailed in \S\ref{sec:capsep}). The distinction matters: CapSep's
+formal guarantee for $\Kverified$ is unconditional; for $\Kextended$
+it is empirically conditioned and subject to Q4 validation
+(\S\ref{sec:capsep}).
+
+\subsection{VT-x VM-exits and the Observable Surface}
+
+Intel VT-x delivers control to the VMM on every VM-exit, populating
+a VMCS exit-information field with the exit reason, exit
+qualification, and guest register state. EXTp captures a 4-tuple
+observable surface per VM-exit:
+\begin{equation}
+\begin{aligned}
+\text{observable}(X) = \langle\,&\text{rip}(X),\ \text{exit\_reason}(X), \\
+                                &\text{exit\_qual}(X),\ \text{rax}(X)\,\rangle
+\end{aligned}
+\end{equation}
+
+This surface is intentionally narrow. Other general-purpose registers
+(rbx, rcx, \ldots, r15) are captured internally but excluded from the
+formal surface to maintain falsifiability --- a surface defined over
+all registers would require claims about register-level determinism
+that EXTp's current calibration does not support (\S\ref{sec:soe}).
+The surface is sufficient for the class of exploits EXTp targets:
+VM-exit-boundary privilege escalations whose causal signal manifests
+in instruction-pointer divergence, exit-reason changes, or return
+value modification.
+
+\subsection{Pearl Causality and Actual Causation}
+
+Pearl's structural causal model formalizes causation through the
+$\dox{x'}$ intervention operator, which forcibly sets variable $X$
+to $x'$ by severing all incoming causal connections to $X$ in the
+underlying model~\cite{pearl2009causality}. Three axioms govern
+atomic interventions: \emph{effectiveness} ($\dox{x'}$ successfully
+sets $X$ to $x'$), \emph{composition} (intervening on $X$ while
+holding $W$ at its natural value $w$ produces the same outcome as
+$\dox{x'}$ alone when $W_x = w$), and \emph{reversibility}
+(algebraic reversal of intervention semantics within a single
+structural model). EXTp operationalizes effectiveness and
+composition; reversibility is inapplicable under linear-time
+execution and is declared as a concrete divergence point rather than
+silently elided (\S\ref{sec:cst}).
+
+Halpern and Pearl's actual-causation
+framework~\cite{halpern2005causes} specifies when a specific event
+is \emph{the} cause of an observed outcome. The AC1 condition
+requires that both the candidate cause and its effect occur in the
+actual world; AC2 has two parts: AC2(a) requires counterfactual
+sensitivity --- that under an alternative assignment to the cause,
+the effect changes --- and AC2(b) requires a hold-fixed condition,
+that this sensitivity holds while keeping a specified set of other
+variables fixed at their actual values; AC3 requires minimality over
+the cause set. EXTp's CST establishes AC1 and AC2 for every
+admissible atomic claim. AC3 (minimality) is outside CST v1.0 scope:
+CST produces \emph{causal-link} claims, not \emph{causal-explanation}
+claims in the Halpern-Pearl sense.
+
+Pearl's faithfulness axiom requires a probability distribution to
+test conditional independence against; this presupposition holds in
+observational studies but not in EXTp's trajectory-level
+deterministic setting. The implication for CST's design is developed
+in \S\ref{sec:cst}.
+
+% =====================================================================
+\section{Threat Model}\label{sec:threat}
+
+\subsection*{Attacker, Target, and Analyst}
+
+EXTp targets a specific analysis scenario: a security researcher has
+captured an exploit trace --- a sequence of VM-exit events produced
+by guest-level code attempting privilege escalation or isolation
+bypass on the seL4 VMM --- and wishes to determine which input
+parameters causally produced the observed outcome. The target is the
+seL4 VMM and its hosted guest workloads; EXTp does not model attacks
+against EXTp itself. The attacker is the guest executing the
+exploit; the analyst is EXTp.
+
+EXTp makes no attempt to prevent the exploit from succeeding during
+the original capture. It operates \emph{post-hoc}: given a trace
+$\Korig$ of an exploit that has already executed, EXTp constructs
+counterfactual traces $\Tcf$ under controlled input modifications and
+issues causal attribution claims about the divergence.
+
+\subsection*{Trusted Computing Base}
+
+EXTp's trusted computing base (TCB) comprises the seL4 microkernel,
+the EXTp VMM implementation, and the underlying Intel VT-x hardware.
+Specifically:
+\begin{itemize}
+\item \textbf{seL4}: functional correctness and capability integrity
+  as established by the L4.verified
+  proof~\cite{klein2009sel4,klein2014sel4}.
+\item \textbf{Intel VT-x hardware}: VM-exit semantics and VMCS field
+  correctness. Microcode revision \texttt{0x3e} (Alder Lake,
+  pre-Downfall); post-Downfall microcode alters $\sigbase$
+  characteristics and requires MI recalibration (\S\ref{sec:mi});
+  cross-microcode portability is out of scope (item~3 below).
+\item \textbf{EXTp VMM}: implementation in C, gcc 12.3 at
+  \texttt{-O2} (build hash in Appendix~\ref{app:build}); intervention
+  machinery operates within $\Kextended$, with side-effect properties
+  empirically bounded by CapSep (\S\ref{sec:capsep}). EXTp's
+  source-level memory safety is not formally verified --- a concrete
+  TCB risk; mitigation pathway via seL4's Isabelle infrastructure is
+  outlined in \S\ref{sec:discussion}.
+\end{itemize}
+
+\subsection*{Out of Scope}
+
+The following are explicitly outside EXTp's threat model and formal
+coverage:
+\begin{itemize}
+\item \textbf{Multi-VCPU concurrent exploits.} Race-condition-dependent
+  exploits (e.g., Chronomaly-class POSIX timer races) require
+  non-deterministic scheduling interactions that break SOE's replay
+  determinism (A4). Multi-VCPU counterfactual replay is future work.
+\item \textbf{Silent microarchitectural channels.} Causal pathways
+  that manifest exclusively in cache, branch predictor, or TLB state
+  without producing 4-tuple or timing-above-$\Dstar$ divergence fall
+  outside A2's observable surface. The forthcoming causal
+  microarchitectural decomposition (CMD) property class addresses
+  this.
+\item \textbf{Cross-configuration portability.} CST's formal
+  assumptions are configuration-conditioned; claims do not transfer
+  across hardware revisions, microcode updates, or VMM builds without
+  recalibration. Recalibration requires re-establishing MI's
+  $\sigbase$ (\S\ref{sec:mi}) and CapSep's Clopper-Pearson bounds
+  (\S\ref{sec:capsep}) on the target configuration; estimated effort:
+  $N \geq 200$ cross-boot trials.
+\end{itemize}
+
+% =====================================================================
+\section{EXTp Framework}\label{sec:framework}
+
+\subsection{Architecture Overview}
+
+EXTp operates in three phases: \emph{capture}, \emph{replay}, and
+\emph{analysis}. Figure~\ref{fig:arch} shows the architecture.
+
+During \textbf{capture}, EXTp runs the exploit guest under the seL4
+VMM. On each VM-exit, \texttt{extp\_event\_from\_vmenter()} records
+the 4-tuple observable surface plus full general-purpose register
+state (rax--r15), per-event timing via bare RDTSC, and exit semantics
+(guest physical address, rflags, cr3, instruction length). The
+result is the original trace $\Korig$: a sequence of VM-exit events
+$[e_0, e_1, \ldots, e_n]$, each carrying the observable surface and
+timing $\Delta_i$.
+
+During \textbf{replay}, EXTp re-executes the trace in a fresh boot
+session with a controlled modification. A VMCS snapshot
+(\texttt{extp\_snapshot\_save}, 23 fields) and EPT Copy-on-Write
+checkpoint (\texttt{extp\_ept\_cow\_restore}) restore guest state to
+the pre-exploit configuration at each run. The intervention is
+applied just before VM-entry; the resulting trace $\Tcf$ is compared
+event-by-event against $\Korig$ via \texttt{extp\_replay\_compare()}
+and \texttt{extp\_determinism\_score()}.
+
+During \textbf{analysis}, the divergence detection function
+$D(\Korig, \Tcf, i)$ identifies events where the 4-tuple or timing
+differs above $\Dstar$. If divergence is detected and the CST
+admissibility check passes (\S\ref{sec:cst}), EXTp issues a causal
+attribution claim $\langle \dox{x'} \rightsquigarrow_i D \mid A;\,
+\mathcal{E} \rangle$ for that event, where $\mathcal{E}$ is the
+validity envelope constructed during the admissibility check.
+
+\begin{figure}[t]
+  \centering
+  \resizebox{\columnwidth}{!}{%
+  \begin{tikzpicture}[
+    font=\footnotesize,
+    >={Stealth[length=2mm,width=1.6mm]},
+    every node/.style={inner sep=2pt},
+    phase/.style={draw=black, line width=0.5pt, rounded corners=2pt,
+                  minimum width=22mm, minimum height=20mm,
+                  align=center, fill=black!2},
+    sub/.style={draw=black!50, line width=0.3pt, rounded corners=1pt,
+                font=\scriptsize, align=center,
+                minimum width=18mm, minimum height=4mm, fill=white},
+    flow/.style={->, line width=0.45pt, draw=black!75},
+    tracelabel/.style={font=\scriptsize\itshape, fill=white, inner sep=1.5pt},
+    diamond/.style={draw=black, line width=0.5pt,
+                    diamond, aspect=1.6, align=center,
+                    minimum width=14mm, minimum height=10mm,
+                    font=\scriptsize, inner sep=1pt},
+    output/.style={draw=black, line width=0.5pt, rounded corners=1pt,
+                   align=center, font=\scriptsize,
+                   minimum width=22mm, minimum height=6mm},
+    notelabel/.style={font=\scriptsize\itshape, text=black!65}
+  ]
+
+  % ===== PHASE 1: CAPTURE =====
+  \node[phase] (capture) {};
+  \node[font=\small\bfseries] at (capture.north) [yshift=2.5mm] {Capture};
+  \node[sub] (guest)   at ($(capture.center) + (0, 5.5mm)$) {exploit guest};
+  \node[sub] (vmm1)    at ($(capture.center) + (0, 0mm)$)   {seL4 VMM};
+  \node[sub] (vmexit)  at ($(capture.center) + (0,-5.5mm)$) {VM-exit hook};
+  \draw[flow] (guest) -- (vmm1);
+  \draw[flow] (vmm1)  -- (vmexit);
+
+  % ===== PHASE 2: REPLAY =====
+  \node[phase, right=18mm of capture] (replay) {};
+  \node[font=\small\bfseries] at (replay.north) [yshift=2.5mm] {Replay};
+  \node[sub] (boot)   at ($(replay.center) + (0, 5.5mm)$) {fresh boot};
+  \node[sub] (restore)at ($(replay.center) + (0, 0mm)$)   {VMCS + EPT-CoW};
+  \node[sub] (inject) at ($(replay.center) + (0,-5.5mm)$) {inject $\dox{x'}$};
+  \draw[flow] (boot)    -- (restore);
+  \draw[flow] (restore) -- (inject);
+
+  % ===== PHASE 3: ANALYSIS =====
+  \node[phase, right=18mm of replay] (analysis) {};
+  \node[font=\small\bfseries] at (analysis.north) [yshift=2.5mm] {Analysis};
+  \node[sub] (Dcheck)  at ($(analysis.center) + (0, 5.5mm)$) {divergence $D$};
+  \node[sub] (admiss)  at ($(analysis.center) + (0, 0mm)$)   {admissibility};
+  \node[sub] (envel)   at ($(analysis.center) + (0,-5.5mm)$) {validity env. $\mathcal{E}$};
+  \draw[flow] (Dcheck) -- (admiss);
+  \draw[flow] (admiss) -- (envel);
+
+  % ===== INTER-PHASE FLOWS =====
+  % T_orig: capture -> replay (as reference)
+  \draw[flow] (capture.east) -- node[tracelabel,above]{$\Korig$ ref} (replay.west);
+
+  % T_cf: replay -> analysis
+  \draw[flow] (replay.east) -- node[tracelabel,above]{$\Tcf$} (analysis.west);
+
+  % T_orig direct: capture -> analysis (curved, below)
+  \draw[flow]
+    (capture.south)
+    .. controls +(0,-8mm) and +(0,-8mm) ..
+    node[tracelabel,below,pos=0.5]{$\Korig$}
+    (analysis.south);
+
+  % ===== INPUT/OUTPUT =====
+  % Input: exploit trace into capture
+  \node[notelabel, left=2mm of capture.west, align=right]
+    (input) {exploit\\trigger};
+  \draw[flow] (input.east) -- (capture.west);
+
+  % Output: emitted claim from analysis
+  \node[output, right=8mm of analysis.east] (claim)
+    {$\big\langle \dox{x'} \rightsquigarrow_i D \,|\, A;\,\mathcal{E}\big\rangle$ \\
+     \scriptsize\itshape causal claim};
+  \draw[flow] (analysis.east) --
+    node[tracelabel,above,pos=0.5]{admit} (claim.west);
+
+  % Alternative output (below): invalidity tag
+  \node[notelabel, below=2mm of claim.south, align=center]
+    {or: invalidity tag\\(check fails)};
+
+  \end{tikzpicture}%
+  }
+  \caption{EXTp architecture. The exploit guest produces $\Korig$
+    during capture (VM-exit observable surface plus per-event
+    timing). $\Korig$ serves as the replay reference: in a fresh-boot
+    session, the intervention $\dox{x'}$ is injected at the
+    designated event's VM-entry boundary, producing $\Tcf$. Divergence
+    detection $D$ fires on either 4-tuple difference (SOE clause) or
+    timing excursion above $\Dstar$ (MI clause). If divergence is
+    detected and the four-step CST admissibility check passes, EXTp
+    emits a causal attribution claim.}
+  \label{fig:arch}
+\end{figure}
+
+\subsection{Trace Capture and Fresh-Boot Replay}
+
+EXTp's replay fidelity rests on two restore mechanisms operating in
+concert. \emph{VMCS-level restore} resets 23 VMCS fields covering
+guest control state, segment descriptors, and exception handling
+(full enumeration in Appendix~\ref{app:vmcs}), plus RIP, RSP, RFLAGS,
+and CR3, placing the virtual CPU in a clean initial state.
+Non-restored fields are either constant across replay (host state)
+or read-only (derived state).
+
+\emph{EPT Copy-on-Write restore} reverts guest-modified physical
+pages to their checkpoint state. The mechanism operates via EPT
+permission downgrade: at checkpoint, all guest-writable pages are
+marked read-only in the EPT; the first guest write to each page
+triggers an EPT violation routed to
+\texttt{extp\_ept\_cow\_handler()}, which allocates a shadow page,
+copies the original content, and remaps the guest's view to the
+shadow. Restore reverts each EPT mapping to the original page and
+reclaims the shadow, returning the guest's memory view to its
+pre-exploit state.
+
+These two mechanisms handle the architectural state visible through
+the VT-x interface. Microarchitectural state --- cache occupancy,
+branch predictor history, TLB entries, MSR-resident state --- is not
+reset by VMCS reload. EXTp addresses this through \emph{fresh-boot
+discipline}: each counterfactual replay $\Tcf$ executes in an
+independent boot session, not within the same boot as $\Korig$.
+Cross-boot microarchitectural state is not preserved across power
+cycles, providing a conservative reset guarantee. The cost is
+measurement overhead; within-boot replay with explicit microarch
+state reset machinery is future work.
+
+Cross-boot replay's adequacy as a microarchitectural reset mechanism
+is the empirical claim that SOE (\S\ref{sec:soe}) tests:
+$\scoreS = 1.0000$ over $N{=}34$ cross-boot trials in the absence of
+intervention is the operational evidence that fresh-boot discipline
+produces deterministic 4-tuple trajectories.
+
+\subsection{Intervention Machinery}\label{sec:intervention}
+
+EXTp's intervention machinery modifies a designated parameter $X$ to
+value $x'$ at a specified event $e_i$ during $\Tcf$'s execution.
+Table~\ref{tab:interventions} summarizes the four validated
+intervention classes.
+
+\begin{table}[t]
+  \caption{EXTp intervention classes.}
+  \label{tab:interventions}
+  \centering
+  \small
+  \begin{tabular}{@{}p{0.13\textwidth}p{0.06\textwidth}p{0.08\textwidth}p{0.14\textwidth}@{}}
+  \toprule
+  Class & Type & Status & Mechanism \\
+  \midrule
+  nopcount       & Temp.\ & Validated   & Code patch, iter byte \\
+  register write & State  & Implem.\    & \texttt{vcpu->regs} post-snap \\
+  input value    & State  & Implem.\    & Hypercall arg rewrite \\
+  cache preload  & State  & Future      & EPT + warmup pass \\
+  \bottomrule
+  \end{tabular}
+\end{table}
+
+The classification into \emph{state interventions} (input\_value,
+reg\_state; cache\_state pending EPT warmup validation --- see
+Table~\ref{tab:interventions}) and \emph{temporal interventions}
+(nopcount) reflects the primary expected observable surface: state
+interventions are designed to produce 4-tuple divergence; temporal
+interventions are designed to produce timing divergence above
+$\Dstar$. Both classes may trigger either clause of the divergence
+detector $D$; the classification predicts, not constrains, the
+expected signal.
+
+Intervention scope in CST v1.0 is \emph{per-event}: $X$ is set to
+$x'$ exactly at event $e_i$ and reverts thereafter; extended scopes
+are discussed in \S\ref{sec:discussion}.
+
+Compound interventions --- multiple modifications in the same $\Tcf$
+--- are modeled as an ordered atomic sequence. Commutativity is not
+assumed: $\text{do}(X_1{=}x_1') \rightarrow \text{do}(X_2{=}x_2')$
+and $\text{do}(X_2{=}x_2') \rightarrow \text{do}(X_1{=}x_1')$ may
+produce different divergence patterns if $X_1$'s effect alters the
+state on which $X_2$ operates. Reordering analysis is a per-case
+investigation, not a framework-level guarantee.
+
+EXTp's admissibility check, detailed formally in
+\S\ref{sec:cst}, takes the following operational form in the
+framework: before issuing any causal claim, EXTp performs four
+steps: (1)~the validity envelope $\mathcal{E}$'s tuple components
+match CST v1.0 coverage; (2)~assumption validation references for
+A1--A4 are present and current; (3)~divergence $D{=}\text{true}$ was
+actually observed; (4)~$X$ is within the validated intervention
+surface. Failure of any step produces a structured invalidity tag
+rather than a claim (\S\ref{sec:cst}).
+
+% =====================================================================
+\section{Formal Properties}\label{sec:properties}
+
+\subsection{Capability Separation (CapSep)}\label{sec:capsep}
+
+\textbf{Proof structure.} CapSep is a hybrid structural-empirical
+claim: structurally proven on $\Kverified$ by inheritance from
+L4.verified, and empirically bounded on $\Kextended$ via
+Clopper-Pearson confidence intervals on observed zero-failure trials.
+
+\textbf{Claim.} $\Kint \cap \Kfwk = \emptyset$, where $\Kint$ is the
+capability set held by EXTp's intervention machinery and $\Kfwk$ is
+the capability set governing framework-internal state (VMM
+scheduler, EPT structures outside the intervention surface,
+capability registers not under intervention authority).
+
+\textbf{Two-layer structure.} The disjointness claim has structurally
+different strength on two operation classes introduced in
+\S\ref{sec:background}:
+
+For $\Kverified$ operations, disjointness follows from seL4's
+L4.verified proof: the Isabelle/HOL functional correctness theorem
+establishes external atomicity --- that every capability operation
+in $\Kverified$ completes as an observable single step with no
+intermediate state exposed. Because the intervention machinery's
+authority set is a subset of $\Kextended$ and $\Kverified \cap
+\Kextended = \emptyset$, authority disjointness on $\Kverified$ is
+unconditional.
+
+For $\Kextended$ operations (the VT-x extension API enumerated in
+Appendix~\ref{app:kextended}), disjointness is empirically bounded.
+Disjointness is tested by two complementary protocols, each
+supporting a distinct downstream claim.
+
+\textit{Within-boot} trials ($N{=}998$) measure authority leakage
+within a single execution session and support \emph{comparator
+reliability}: the protocol confirms that the intervention
+machinery does not pollute its own observation surface when
+running in steady state. Observed failure rate is zero;
+Clopper-Pearson one-sided $95\%$ upper bound on the failure rate
+is $\leq 0.37\%$.
+
+\textit{Cross-boot} trials ($N{=}34$) measure authority leakage
+across independent boot sessions and support \emph{A4's
+operational bound}: the protocol confirms that residual
+microarchitectural state from previous runs does not survive
+fresh-boot discipline. Observed failure rate is zero;
+Clopper-Pearson one-sided $95\%$ upper bound is $\leq 10.4\%$.
+The wider cross-boot bound reflects the smaller sample (cross-boot
+trials are operationally expensive). The within-boot bound is
+the operational confidence value used in A1-modulo claims; the
+cross-boot bound underwrites A4's replay-determinism antecedent
+(\S\ref{sec:cst}).
+
+\textbf{Pearl role.} Pearl's modularity axiom requires that
+$\dox{x'}$ severs all incoming causal connections to $X$ in the
+structural model. In EXTp's setting, ``incoming causal connections
+to $X$'' correspond to capability-mediated authority over $X$'s
+state. Disjointness $\Kint \cap \Kfwk = \emptyset$ therefore
+establishes that intervention authority cannot reach $X$ via any
+framework-internal pathway, satisfying modularity within the
+capability-mediated subset of causal connections. The \emph{known
+gap} below clarifies that non-capability side-effect paths (cache,
+scheduler overhead) lie outside this subset.
+
+\textbf{Known gap.} CapSep establishes \emph{authority disjointness},
+not \emph{side-effect freedom}. The intervention machinery's
+execution itself consumes microarchitectural resources --- VMM
+scheduler time, cache lines, branch predictor history --- that may
+produce indirect effects on framework state not governed by the
+capability system. These side-effect paths are outside the
+$\Kint \cap \Kfwk$ disjointness argument; their empirical
+boundedness is the subject of the Q4 future experiment
+(\S\ref{sec:discussion}). Until Q4 resolves, A1 (Pearl modularity;
+formally stated in \S\ref{sec:cst}) in CST is asserted modulo
+side-effects below $\Dstar$ on framework observables, and this
+qualifier propagates: every CST claim's validity envelope
+$\mathcal{E}$ carries an explicit \texttt{A1-modulo} flag; downstream
+tools consuming CST claims must check this flag before relying on
+causal attribution. All claims in this paper are issued under CST
+v1.0 and carry this flag unless Q4 resolves otherwise.
+
+\subsection{Strong Observational Equivalence (SOE)}\label{sec:soe}
+
+\textbf{Proof structure.} SOE is a hybrid formal-empirical claim
+with two antecedents: a structural antecedent (Capability
+Separation, \S\ref{sec:capsep}) establishing that replay and original
+execution operate under divergent authority, and an empirical
+antecedent (comparator validity via four-field injection testing)
+establishing that the 4-tuple comparator is faithful to its
+specification.
+
+\textbf{Claim.} Let $E$ be a guest execution under EXTp's VMM, and
+$R = \text{replay}(E)$ the corresponding replay execution. Then:
+\begin{equation}
+E \approx_S R \quad \text{iff} \quad \forall i:\
+\text{observable}(E)_i = \text{observable}(R)_i
+\end{equation}
+where the 4-tuple at event $i$ is
+\begin{equation*}
+\begin{aligned}
+\text{observable}(X)_i = \langle\,&\text{rip}_i(X),\,\text{exit\_reason}_i(X), \\
+                                  &\text{exit\_qual}_i(X),\,\text{rax}_i(X)\,\rangle.
+\end{aligned}
+\end{equation*}
+
+\textbf{Empirical support.} Across $N{=}998$ single-boot replay
+trials, $\scoreS = 1.0000$ (exact: zero failures on all four
+observable fields across all events in all runs). Across $N{=}34$
+cross-boot trials, $\scoreS = 1.0000$ again. Clopper-Pearson
+one-sided $95\%$ upper confidence bounds on the per-run failure rate
+are $\leq 0.37\%$ at $N{=}998$ and $\leq 10.4\%$ at $N{=}34$. The
+$N{=}34$ cross-boot bound is the conservative public-facing figure
+cited in the introduction; the tighter $N{=}998$ bound is the
+operational value. In either case, the ``$1.0000$'' framing is
+\emph{high-confidence empirical}, not categorical.
+
+\textbf{Scope limitation.} The observable surface covers RAX as the
+sole general-purpose register. Other GPRs (RBX, RCX, RDX, R8--R15)
+are captured internally but excluded from the formal surface for
+falsifiability: a surface defined over all 16 GPRs would require
+determinism claims over register state that EXTp's current
+calibration does not support. Exploits whose divergence manifests
+exclusively in non-RAX registers are silent on the SOE surface ---
+a scope boundary analogous to MI's silent-leak class. Extension to
+the full register file is straightforward mechanically but requires
+$N$-trial recalibration; deferred (\S\ref{sec:discussion}).
+
+\textbf{Pearl role.} SOE underwrites two assumptions: A4 (replay
+determinism) and, through its 4-tuple surface definition, A2
+(observable surface coverage) --- both formally stated in
+\S\ref{sec:cst}. SOE's trajectory-level reproducibility is
+\emph{strictly stronger} than Pearl's probabilistic faithfulness
+axiom: faithfulness requires that conditional independences in an
+observed distribution correspond to d-separations in the underlying
+DAG, which presupposes a probability distribution. Under SOE's
+deterministic replay, there is no distribution --- trajectories are
+reproduced exactly, making probabilistic CI testing unnecessary. A4
+therefore inherits a property stronger than faithfulness requires,
+which is why CST's proof sketch (\S\ref{sec:cst}) does not appeal to
+CI testing at any step.
+
+\subsection{Measurement Interference (MI)}\label{sec:mi}
+
+\textbf{Proof structure.} MI is an empirical claim grounded in two
+antecedents: (i)~$\sigbase$ estimation from post-warmup
+zero-perturbation samples per workload class and instrument, and
+(ii)~FPR validation against nominal $\alpha$ via Clopper-Pearson
+confidence intervals on observed false-positive counts.
+
+\textbf{Claim.} For workload class $L$ under timing instrument $S$,
+there exists a calibrated detection threshold $\Dstar = z_{1-\alpha}
+\cdot \sigbase$ such that a per-event timing deviation above
+$\Dstar$ is detectable with false-positive rate bounded by $\alpha$
+(nominal $0.05$). $\sigbase$ is the sample standard deviation of
+post-warmup timing samples at zero perturbation ($\text{iter}{=}0$),
+computed within each experiment.
+
+\textbf{Timing instruments.} EXTp supports two instruments. $S_1$
+(LFENCE-sandwich-RDTSC) serializes instruction retirement before the
+TSC read, adding ${\sim}3\times$ noise over $S_2$ (bare RDTSC) but
+eliminating out-of-order TSC read artifacts. $S_2$ is preferred for
+detection-threshold calibration; $S_1$ for cross-workload
+comparisons requiring serialization consistency.
+
+\textbf{Calibrated values.} For the $L_1$-pchase workload class
+under $S_1$: $\sigbase = 5{,}518$ cycle ($n{=}108$,
+boot\_log12, iter$=0$), slope $b = 4.481$ cycle/iter, $\Dstar =
+1.645 \times 5{,}518 = 9{,}077$ cycle. For $L_2$-pchase under $S_2$
+(boot\_log15, $n{=}108$, iter$=0$): $\sigbase = 4{,}604$ cycle,
+$b = 15.194$ cycle/iter, $\Dstar = 1.645 \times 4{,}604 = 7{,}574$
+cycle. The $\hat{\sigma}$ confidence interval at $n{=}108$ is
+$[4{,}867,\, 6{,}371]$ cycle ($95\%$), implying a $\Dstar$
+uncertainty range of approximately $+15\%/{-}12\%$ (asymmetric,
+reflecting the $\chi^2$ CI structure on $\hat{\sigma}$; upper:
+$1.645 \times 6{,}371 = 10{,}480$ cycle; lower: $1.645 \times 4{,}867
+= 8{,}006$ cycle). This is $\hat{\sigma}$-noise dominated, not a
+functional-form mismatch (\S\ref{sec:eval}).
+
+\textbf{Empirical FPR.} Realized false-positive rate is
+workload-dependent. For $L_1$-pchase under $S_1$ (boot\_log8,
+$n{=}978$): $0.61\%$ (Clopper-Pearson $95\%$ CI
+$[0.22\%, 1.33\%]$). For $L_1$-pchase under $S_1$ at finer grain
+(boot\_log12, iter$=0$, $n{=}108$): $2.78\%$ (CI
+$[0.58\%, 7.91\%]$). Both lie below nominal $\alpha{=}5\%$; the
+wider boot\_log12 interval reflects the smaller $n$.
+
+The use of $z = 1.645$ (Gaussian one-sided $\alpha{=}5\%$
+quantile) for $\Dstar$ calibration is a deliberate design choice,
+not a distributional assumption: when the empirical timing
+distribution has heavier-than-Gaussian tails (as observed under
+$L_1$-pchase, where the empirical-to-nominal FPR ratio is
+${\approx}8.2{\times}$ for boot\_log8), the Gaussian threshold
+over-estimates tail probability and therefore yields empirical
+FPR strictly below the nominal $\alpha$. This is conservative in
+the false-positive direction by construction. The cost is reduced
+detection sensitivity for effects near $\Dstar$; this trade-off
+is intentional and is consistent with EXTp's broader emphasis on
+sound (rather than complete) attribution.
+
+\textbf{Scope: per-event detection.} MI claims per-event
+detection-threshold validity. The detection criterion's $\alpha$ is
+per-event: each event-indexed comparison carries nominal
+false-positive rate $\alpha$. For a trace of $N$ events, the
+expected false detection count under no perturbation is
+$N \cdot \arealized$. Trace-level false discovery rate (FWER) is the
+downstream consumer's aggregation responsibility; MI does not
+prescribe a correction method, as the appropriate correction depends
+on the consumer's use case.
+
+\textbf{Pearl role.} MI underwrites A3 (formally stated in
+\S\ref{sec:cst}): timing deviations above $\Dstar$ are attributable
+to intervention rather than baseline noise, at the calibrated FPR.
+A3 is an EXTp-specific assumption addressing the empirical noise
+floor absent from Pearl's idealized structural equations; it
+captures confounder boundedness in the timing domain and complements
+Pearl's axioms rather than mapping directly to any one of them.
+MI's $\Dstar$ extends SOE's 4-tuple surface (A2, \S\ref{sec:cst})
+into the timing domain, enabling detection of interventions whose
+causal effect is temporal rather than structural.
+
+\subsection{Counterfactual Soundness Theorem (CST)}\label{sec:cst}
+
+\textbf{Proof structure.} CST is the binding theorem of the property
+hierarchy: it formally proves that the three observable properties
+(CapSep, SOE, MI) compose into sound causal attribution. CST does
+not make new empirical claims; it asserts that CapSep + SOE + MI, in
+composition, are sufficient to ground Pearl-style causal attribution
+within enumerated epistemic bounds.
+
+\begin{theorem}[CST Composition Closure, atomic case]
+\label{thm:cst}
+Let $\Korig$ and $\Tcf$ be counterfactual replays under a single
+configuration, with $\Tcf$ generated by atomic intervention
+$\dox{x'}$. Let $A = (A_1, A_2, A_3, A_4)$ be the assumption envelope
+and $\mathcal{E}$ the validity envelope. Under $A$ satisfied and
+$\mathcal{E}$ admitted, the atomic CST claim
+$$\big\langle \dox{x'} \rightsquigarrow_i D \;\big|\;
+A;\;\mathcal{E} \big\rangle$$
+is \emph{admissible} iff $D(\Korig, \Tcf, i) = \text{true}$ and the
+four-step admissibility check (\S\ref{sec:intervention}) passes.
+When admissible, the claim asserts that observable divergence $D$ at
+event $i$ is causally attributable to $\dox{x'}$, without making
+claims about the microarchitectural mechanism by which the
+divergence arose. Furthermore, the admissible claim satisfies:
+\begin{enumerate}[label=(\roman*)]
+\item Pearl's effectiveness axiom: $\dox{x'}$ sets $X$ to $x'$;
+\item Pearl's composition axiom modulo A1: inheriting modularity
+  validation status;
+\item Halpern-Pearl AC1: effect $D$ occurs in the counterfactual
+  trace $\Tcf$;\footnote{AC1's ``actual world'' in CST is $\Tcf$ ---
+  the world in which the intervention was applied and the divergence
+  observed. This differs from the classical HP framing where the
+  actual world is pre-intervention.}
+\item Halpern-Pearl AC2(a): effect $D$ differs from $\Korig$ under
+  intervention, establishing counterfactual sensitivity. AC2(b)
+  [witness fixity] is satisfied by EXTp's single-configuration
+  replay discipline: all framework state outside the intervention
+  surface is held constant by fresh-boot determinism (A4) and the
+  validity envelope $\mathcal{E}$, not by a separate operational
+  test.
+\end{enumerate}
+\end{theorem}
+
+\textbf{Assumptions.} Table~\ref{tab:assumptions} states the four
+assumptions formally. Each derives from an upstream property entry.
+
+\begin{table}[t]
+  \caption{CST assumptions.}
+  \label{tab:assumptions}
+  \centering
+  \small
+  \begin{tabular}{@{}p{0.11\textwidth}p{0.13\textwidth}p{0.06\textwidth}p{0.10\textwidth}@{}}
+  \toprule
+  Assump.\ & Role & Source & Status \\
+  \midrule
+  A1 Modul.\           & $\text{do}()$ side-eff.\ free & CapSep
+                       & Mod.\ Q4 \\
+  A2 Obs.\ comp.\      & AC2 detect.                   & SOE
+                       & Mod.\ silent \\
+  A3 Confound.\        & Noise $<\Dstar$               & MI
+                       & Calibrated \\
+  A4 Determ.\          & No coincidence                & SOE
+                       & High-conf. \\
+  \bottomrule
+  \end{tabular}
+
+  \vspace{0.3em}
+  \footnotesize{Source columns: CapSep~(\S\ref{sec:capsep}),
+  SOE~(\S\ref{sec:soe}), MI~(\S\ref{sec:mi}). A2 silent-channel
+  qualifier per~\S\ref{sec:threat}. A4 confidence $N{=}34$.}
+\end{table}
+
+\textbf{Proof argument structure: threat elimination.} We adopt a
+threat-elimination structure (rather than direct
+antecedent$\rightarrow$conclusion derivation) because the three
+threats correspond directly to the empirical gaps motivating EXTp's
+three properties; a rigorous formal derivation following standard
+proof structure is in Appendix~\ref{app:proofs}. The proof addresses
+three threats in turn.
+
+\emph{Threat 1 --- Coincidence.} Under A4 (replay determinism,
+grounded by SOE's $\scoreS = 1.0000$ over $N{=}34$ cross-boot
+trials), spontaneous divergence on the 4-tuple surface is ruled out
+at false-positive rate zero: any 4-tuple divergence in $\Tcf$
+relative to $\Korig$ requires a trace-distinguishing input
+difference; under the single-configuration discipline, the only
+controlled trace-distinguishing input is $\dox{x'}$. External
+factors (microcode jitter, thermal variance, hardware faults) are
+bounded by SOE's empirical $\scoreS = 1.0000$ over $N{=}34$
+cross-boot trials; attribution to $\dox{x'}$ is the
+maximum-likelihood explanation within the calibrated confidence
+envelope. The timing clause admits a residual coincidence rate
+$\arealized$, calibrated per workload class ($0.61\%$ under
+$L_1$-pchase/$S_1$ boot\_log8; $2.78\%$ under $L_1$-pchase/$S_1$
+boot\_log12; MI \S\ref{sec:mi}), incorporated into A3 as an
+explicitly bounded, not silenced, source of attribution uncertainty.
+
+\emph{Threat 2 --- Silent mechanism.} Addressed by scope-honesty
+under A2. If a silent microarchitectural process triggered by
+$\dox{x'}$ produces no 4-tuple delta and no timing deviation above
+$\Dstar$, then $D = \text{false}$ and CST issues no claim ---
+scope-honest silence. If the silent process does produce observable
+divergence, $D = \text{true}$ and CST attributes correctly at the
+event-chain level, mechanism-agnostic: CST claims that $\dox{x'}$
+caused the observable divergence, not that it caused the underlying
+microarchitectural change. Silent processes that manifest neither
+clause of $D$ are explicitly deferred to the forthcoming CMD
+property class (\S\ref{sec:discussion}).
+
+\emph{Threat 3 --- Confounder.} Addressed by A1 (modularity,
+grounded by CapSep \S\ref{sec:capsep}), modulo the known gap. Under
+A1, intervention execution does not modify framework-internal state
+outside $X$'s capability authority scope; no third factor correlated
+with $\dox{x'}$ can produce the divergence. Until the side-effect
+quantification experiment resolves (Q4; \S\ref{sec:discussion}), A1
+is asserted modulo side-effects below $\Dstar$: framework-internal
+side-effects bounded below the detection threshold are absorbed into
+A3's noise model rather than constituting unbound confounders. The
+A1-modulo qualifier propagates to every CST claim via the validity
+envelope's \texttt{A1-modulo} flag (\S\ref{sec:capsep}).
+
+\textbf{Compositional extension.}
+\begin{proposition}[Sequential composition]
+$\langle \text{do}(X_1) \rightsquigarrow_{i_1} \cdots
+\rightsquigarrow_{i_n} D \mid A; \mathcal{E}\rangle$ is admissible
+iff every atomic step is independently admissible under
+Theorem~\ref{thm:cst}.
+\end{proposition}
+
+\emph{Proof sketch by induction on chain length:} the base case is
+Theorem~\ref{thm:cst}; the inductive step requires that A1's
+framework-state isolation propagates across sequential interventions,
+which follows from CapSep's per-operation disjointness --- each
+$\Kint$ operation remains disjoint from $\Kfwk$ regardless of
+execution order. Commutativity is not assumed. Full proof in
+Appendix~\ref{app:proofs}.
+
+\textbf{Pearl/HP correspondence.}
+Table~\ref{tab:pearl} summarizes CST's correspondence to Pearl's
+structural causal model and Halpern-Pearl actual-causation
+conditions.
+
+\begin{table}[t]
+  \caption{Pearl/HP correspondence.}
+  \label{tab:pearl}
+  \centering
+  \small
+  \begin{tabular}{@{}p{0.11\textwidth}p{0.16\textwidth}p{0.13\textwidth}@{}}
+  \toprule
+  Construct       & EXTp realization               & Status \\
+  \midrule
+  Modularity      & CapSep: $\Kint \cap \Kfwk = \emptyset$ & Holds mod A1 \\
+  Effectiveness   & Intervention (\S\ref{sec:intervention})       & Holds \\
+  Composition     & Inherits A1 modularity         & Holds mod A1 \\
+  Reversibility   & Linear-time exec.              & Inapplicable \\
+  do-calc. R1--3  & Degenerate-determ.             & Hold \\
+  HP AC1          & $D$ in $\Tcf$ at $i$           & Direct \\
+  HP AC2(a)       & $D$ differs in $\Korig$        & Direct \\
+  HP AC2(b)       & Witness fix.\ via fresh-boot   & Direct \\
+  HP AC3 (min.)   & Future work                    & Out of scope \\
+  \bottomrule
+  \end{tabular}
+\end{table}
+
+AC3 (minimality over the cause set) is outside CST v1.0 scope: CST
+issues \emph{causal-link} claims --- attributing observable
+divergence to a named intervention --- not
+\emph{causal-explanation} claims identifying the minimal sufficient
+cause set. Extension to AC3 requires a search procedure over
+candidate intervention sets and is deferred.
+
+Two concrete divergence points from Pearl's classical framework are
+declared explicitly. \emph{Reversibility} (Pearl's Def.~7.3.1:
+algebraic reversal of intervention within a single structural model)
+is inapplicable under EXTp's linear-time execution; we declare this
+as a concrete scope limitation rather than silently eliding it.
+\emph{Faithfulness} (conditional independence testing over a
+probability distribution) is \emph{strictly subsumed}: A4's
+trajectory-level determinism provides a stronger guarantee than
+faithfulness requires, making probabilistic CI testing unnecessary.
+Pearl's do-calculus inference rules (Rules~1--3) become degenerate
+under EXTp's deterministic setting: conditional independence
+rewriting reduces to trajectory-level equality testing, provided
+directly by SOE without invoking the rules' probabilistic machinery.
+
+% =====================================================================
+\section{Evaluation}\label{sec:eval}
+
+\subsection{Experimental Setup}
+
+All experiments run on bare-metal Intel 12th Gen Core (Alder Lake,
+microcode \texttt{0x3e}, ASUS Z690 motherboard, UEFI firmware) with
+no host OS. The seL4 VMM runs directly on hardware; the guest
+executes under EXTp's VT-x control loop. Serial console infrastructure
+(DIGITUS USB-Serial FT232RL, Digitus PCIe Serial DS-30000-1, RS-232
+null modem cable) provides out-of-band I/O during bare-metal runs.
+No network connectivity is present during any experiment.
+
+All timing measurements use bare RDTSC ($S_2$) for
+detection-threshold calibration and LFENCE-sandwich-RDTSC ($S_1$)
+for cross-workload comparisons. EXTp's VMM is compiled with gcc 12.3
+at \texttt{-O2} (build hash in Appendix~\ref{app:build}).
+
+\subsection{Privilege-Check-Bypass Demonstration}\label{sec:eval-demo}
+
+The demonstration exercises EXTp's full attribution pipeline on a
+synthetic capability-bypass exploit pattern: a controlled,
+reproducible analog of the CrackArmor confused-deputy class
+(\S\ref{sec:intro}, C4) without the multi-VCPU complexity that would
+place real CrackArmor instances outside CST v1.0's single-VCPU
+envelope. The scenario produces both a clean SOE-clause divergence
+signal and an empirical surface on which the timing clause and the
+A1-modulo bound can be observed.
+
+\subsubsection{Scenario}
+
+A 29-byte synthetic guest binary at GPA \texttt{0x10000} executes a
+control flow that branches on a capability token held in register
+\texttt{r8}.\footnote{\texttt{r8} is used rather than \texttt{rax}
+because the VMM's CPUID handler deterministically writes the
+``EXTp'' vendor ID into \texttt{rax}--\texttt{rdx} on every CPUID
+exit (\S\ref{sec:framework}), clobbering those registers; \texttt{r8}
+is preserved across CPUID handling, making it a faithful carrier of
+the capability-token state across event boundaries.} The default
+path (\texttt{r8 = 0}) executes a benign CPUID at offset 13
+(RIP \texttt{0x1000d}, RAX cleared); the privileged path
+(\texttt{r8 = 0xDEAD}) executes CPUID at offset 22
+(RIP \texttt{0x10016}, RAX \texttt{0x80000008}).
+Table~\ref{tab:demo-divergence} shows the predicted and observed
+divergence at event 1.
+
+\begin{table}[t]
+  \caption{Demo divergence prediction (matches observation across
+    all $N{=}200$ post-warmup trials, bare-metal Intel Alder Lake
+    per \S\ref{sec:eval}).}
+  \label{tab:demo-divergence}
+  \centering
+  \small
+  \begin{tabular}{@{}cp{0.13\textwidth}p{0.14\textwidth}@{}}
+  \toprule
+  Event & $\Korig$ (\texttt{r8=0}) & $\Tcf$ (\texttt{r8=0xDEAD}) \\
+  \midrule
+  0 & RIP \texttt{0x10000}, CPUID, RAX 0    & identical \\
+  1 & RIP \texttt{0x1000d}, CPUID, RAX 0    & RIP \texttt{0x10016}, CPUID, RAX \texttt{0x80000008} \\
+  2 & RIP \texttt{0x10018}, VMCALL          & identical \\
+  \bottomrule
+  \end{tabular}
+\end{table}
+
+The intervention $\text{do}(\text{r8}{=}\text{0xDEAD})$ fires
+immediately after the CPUID handler completes for event~0, via a
+second \texttt{WriteRegisters} call that overrides \texttt{r8} while
+preserving all other registers from the handler's state. The guest
+then executes \texttt{cmp \$0xDEAD, \%r8} at offset~2 with the
+forged token, takes the conditional branch, and follows the
+privileged path through event~1's CPUID. Event~2's VMCALL terminates
+both traces identically (post-divergence reconvergence).
+
+\subsubsection{SOE-clause divergence}
+
+Across $N{=}100$ same-condition pairs and $N{=}100$ cross-condition
+pairs (single-boot run, 222 total runs minus 22 framework- and
+inner-warmup-discarded samples), the four-step admissibility check
+(\S\ref{sec:intervention}) passes for every trial:
+\begin{enumerate}[label=(\arabic*)]
+\item Envelope match: instrument $S_1$, workload class
+  \textit{synthetic-guest}, intervention scope per-event at event~0,
+  hardware identity Alder Lake / microcode \texttt{0x3e} / Z690.
+\item Assumption validation: A1--A4 references current; A1 carries
+  the \texttt{A1-modulo} flag (\S\ref{sec:capsep}).
+\item Surface check: $D(\Korig, \Tcf, 1) = \text{true}$ via the SOE
+  clause --- RIP and RAX both diverge.
+\item Intervention surface: \texttt{r8} $\in$ \texttt{\{reg\_state\}}
+  intervention class.
+\end{enumerate}
+The admissible CST claim emitted in every trial is:
+\begin{equation*}
+\big\langle \text{do}(\text{r8}{=}\text{0xDEAD}) \rightsquigarrow_{1}
+D \,\big|\, A_1^{\text{mod}}, A_2, A_3, A_4;\, \mathcal{E}_{\text{v1.0}} \big\rangle
+\end{equation*}
+The SOE clause fires with false-positive rate zero (deterministic
+4-tuple equality under A4's $\scoreS{=}1.0000$ guarantee): the RIP
+delta $\text{0x1000d} \to \text{0x10016}$ and RAX delta
+$\text{0x0} \to \text{0x80000008}$ are observed in every
+cross-condition pair, and zero divergences are observed in any
+same-condition pair.
+
+\subsubsection{Timing-clause behavior and the A1-modulo bound}
+
+The same demonstration was run under two implementations of the
+intervention machinery, exposing the timing clause's sensitivity to
+the A1-modulo gap (\S\ref{sec:capsep}).
+
+\paragraph{Silent hook (production).} The deployed implementation
+gates all informational output from the intervention apparatus
+(error paths excepted). Across $N{=}100$ per condition, the
+synthetic workload's baseline timing standard deviation is
+$\sigbase = 6{,}237$ cycle (Clopper-Pearson via $\chi^2$ CI:
+$[5{,}476,\, 7{,}245]$, half-width $-12.2\%/+16.2\%$). The realized
+threshold is $\Dstar = 1.645 \cdot 6{,}237 = 10{,}259$ cycle. The
+intervention signature is
+\begin{equation*}
+\overline{T_\text{cf}} - \overline{T_\text{orig}} = +342 \text{ cycle} \approx 0.03 \cdot \Dstar
+\end{equation*}
+(${\approx}70$~ns at 4.9~GHz; one extra \texttt{WriteRegisters}
+syscall accounts for this magnitude). The timing clause of $D$ is
+\textbf{subthreshold} in every trial: the SOE clause is the sole
+divergence signal, and the A1-modulo bound holds at paper-grade
+$N$. Figure~\ref{fig:demo-silent} shows the timing distribution.
+
+\paragraph{Naïve hook (counter-demonstration).} An earlier
+implementation of the same intervention included an informational
+\texttt{printf} in the hook's success path. Under this
+implementation, at $n{=}23$ per condition, the intervention
+signature is
+\begin{equation*}
+\overline{T_\text{cf}} - \overline{T_\text{orig}} = +26{,}617{,}599 \text{ cycle} \approx 2{,}595 \cdot \Dstar
+\end{equation*}
+where $\Dstar = 10{,}259$ cycle is the authoritative threshold
+calibrated under the silent-hook implementation
+(\S\ref{sec:eval-demo} above; the naïve-hook trace's own sample
+standard deviation $7{,}727$ cycle reflects an A1-modulo-broken
+state contaminated by printf I/O latency and is not used as a
+detection threshold). The magnitude
+$26.6$M cycle $\approx 5.43$~ms at 4.9~GHz is itself
+diagnostically informative: at 115200-baud synchronous serial
+output, $\sim$60 characters of \texttt{printf} yield $\sim$5~ms
+of I/O latency, matching the observed signature. The SOE clause
+fires identically in both implementations (the 4-tuple delta is
+determined by the guest's branch target, not by hook latency),
+but the timing clause fires for the \emph{wrong reason} under the
+naïve hook: not because the guest's causal effect is detectable
+on the timing surface, but because the intervention apparatus's
+own execution cost exceeds $\Dstar$ by three orders of magnitude.
+Figure~\ref{fig:demo-comparison} shows the contrast.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\columnwidth]{fig/paper_section6_silent_histogram.pdf}
+  \caption{Silent-hook demonstration: timing distribution of
+    $\Korig$ vs $\Tcf$ ($N{=}100$ per condition). The intervention
+    signature ($+342$ cycle, $0.03\cdot\Dstar$) is dwarfed by the
+    detection threshold (dashed red, $\pm\Dstar = \pm10{,}259$
+    cycle). Distributions overlap heavily, consistent with
+    A1-modulo holding under the silent implementation.}
+  \label{fig:demo-silent}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\columnwidth]{fig/paper_section6_signature_comparison.pdf}
+  \caption{Intervention signature magnitude under two hook
+    implementations, compared against the authoritative detection
+    threshold $\Dstar = 10{,}259$ cycle (silent-hook calibration,
+    dashed). The naïve hook ($n{=}23$, Day 6): signature
+    $+26{,}617{,}599$ cycle $\approx 2{,}595\cdot\Dstar$, A1-modulo
+    \emph{broken} (printf I/O latency dominates the timing surface).
+    The silent hook ($n{=}100$, Day 8): signature $+342$ cycle
+    $\approx 0.033\cdot\Dstar$, A1-modulo \emph{holds} (intervention's
+    own execution cost is well below the detection threshold). The
+    SOE-clause divergence is identical in both implementations; only
+    the timing clause distinguishes them.}
+  \label{fig:demo-comparison}
+\end{figure}
+
+\subsubsection{Reading: the framework detects its own A1 violations}
+
+This bifurcation is, on its face, a story about instrumentation
+discipline: silent hooks pass the A1-modulo check; verbose hooks do
+not. But the structural point for CST is sharper. The naïve-hook
+data is not a bug-fix anecdote; it is an \emph{operational test} of
+CST's own assumption envelope. The naïve hook produces an
+intervention apparatus whose execution cost on the timing surface
+($+26.6$M cycle) demonstrably exceeds $\Dstar$ --- precisely the
+condition under which A1's modulo qualifier fails. The framework's
+timing clause correctly fires; CST's admissibility check correctly
+attaches the \texttt{A1-modulo} flag; downstream consumers reading
+that flag are correctly warned that the timing surface contains a
+machinery contribution. The silent hook restores A1-modulo and
+returns the timing clause to its design-intended role
+(intervention-effect detection rather than machinery-cost detection).
+The SOE clause is invariant across both implementations because
+4-tuple determinism is a property of the guest's causal structure,
+not the hook's instrumentation overhead --- the structural feature
+that makes SOE the robust attribution signal under A4.
+
+\subsubsection{Counterfactual sweep: causal coverage map}
+\label{sec:eval-demo-sweep}
+
+The single-intervention demonstration above establishes that
+$\dox{r_8{=}\text{0xDEAD}}$ produces an admissible CST claim. To
+test whether the same admissibility machinery correctly handles
+the broader fuzzing-style sweep CST is designed to support
+(\S\ref{sec:discussion-fuzz}), we ran a 33-value sweep over $r_8$
+$\in S_{r_8}$ on the same bare-metal configuration, where
+$S_{r_8}$ contains the validated exploit value
+(\texttt{0xDEAD}), 16 low-byte values (\texttt{0x0}--\texttt{0xF})
+spanning the structural-collision region, 14 wide-pattern values
+(\texttt{0x1111}, \texttt{0x2222}, $\ldots$, \texttt{0xEEEE}),
+and the two semantic distractors \texttt{0xCAFE} and
+\texttt{0xBEEF}. Each value was applied twice (66 $\Tcf$ runs
+total) under the silent-hook implementation.
+
+\textbf{Result.} The divergence count is $1/33$, matching the
+binary scenario design exactly: only $r_8 = \text{0xDEAD}$
+triggered the privileged path (RIP $0x10016$, RAX
+\texttt{0x80000008}, SOE clause firing); all 32 other values
+followed the default path (RIP $0x1000d$, RAX 0, SOE clause
+silent). Within-input reproducibility was $100\%$: every $r_8$
+value produced an identical event-1 4-tuple across both of its
+repeat passes, extending A4's determinism guarantee from the
+no-intervention baseline ($\scoreS{=}1.0000$ over $N{=}34$
+cross-boot, \S\ref{sec:soe}) to the intervention-applied case
+across the full sweep. Figure~\ref{fig:demo-sweep} visualizes the
+verdict map.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\columnwidth]{fig/paper_section6_fuzz_causal_map.pdf}
+  \caption{Counterfactual fuzzing causal map. CST verdict for
+    each of the 33 swept $r_8$ values: 32 default-path inputs
+    (gray, $D{=}\text{false}$, SOE clause silent, no admissible
+    divergence claim) versus the single privileged-path input
+    \texttt{0xDEAD} (dark red, $D{=}\text{true}$, SOE clause
+    fires, admissible CST claim emitted). The map is the per-input
+    output of the same admissibility machinery used in the
+    single-intervention demonstration. The 33-input sweep
+    demonstrates the falsifiability primitive: the framework's
+    verdict separates structurally on $D$'s observable predicate,
+    rather than on heuristic crash signatures or aggregate metrics.
+    This is mechanism evidence, not a fuzzing benchmark; sweep
+    coverage and discovery-rate evaluation are out of scope for
+    CST v1.0.}
+  \label{fig:demo-sweep}
+\end{figure}
+
+\textbf{Reading.} The sweep is the operational instance of what
+CST-grounded fuzzing produces: a per-input causal coverage map
+where each point is labeled by admissibility verdict rather than
+crash signature. Two structurally distinct failure modes (silent
+admissibility with $D{=}\text{false}$ versus admissible
+divergence with $D{=}\text{true}$) are reported as distinct
+output classes by the same framework, with no heuristic
+acceptance threshold introduced between them. The
+single-shot $n{=}2$-per-value confidence is mechanically modest;
+the structural claim is that admissibility is a falsifiable
+classifier, separately verifiable per input. The downstream
+implications for counterfactual fuzzing are discussed in
+\S\ref{sec:discussion-fuzz}.
+
+\subsection{Measurement Characterization}\label{sec:eval-meas}
+
+Table~\ref{tab:meas} reports $\sigbase$, $\Dstar$, realized FPR, and
+$\scoreS$ across the three workload classes characterized to date:
+the two pchase reference workloads from MI calibration
+(\S\ref{sec:mi}) and the synthetic-guest workload introduced by the
+demonstration (\S\ref{sec:eval-demo}).
+
+\begin{table}[t]
+  \caption{Measurement characterization.}
+  \label{tab:meas}
+  \centering
+  \small
+  \begin{tabular}{@{}llrrrr@{}}
+  \toprule
+  Workload      & Instr & $\hat{\sigma}$ & $\Dstar$    & FPR     & $\scoreS$ \\
+  \midrule
+  $L_1$-pchase  & $S_1$ & $5{,}518$      & $9{,}077$   & $0.61\%$ & $1.0000$ \\
+  $L_2$-pchase  & $S_2$ & $4{,}604$      & $7{,}574$   & $2.78\%$ & $1.0000$ \\
+  Synth.\ guest & $S_1$ & $6{,}237$      & $10{,}259$  & subthresh.\ & $1.0000$ \\
+  \bottomrule
+  \end{tabular}
+
+  \vspace{0.3em}
+  \footnotesize{Pchase rows: $N{=}998$ within-boot. Synthetic-guest
+  row: $n{=}100$ per condition, $\chi^2$ 95\% CI on $\hat{\sigma}$:
+  $[5{,}476,\,7{,}245]$, half-width $-12.2\%/+16.2\%$. ``Subthresh.''
+  for synth.\ FPR: silent-hook intervention signature $+342$ cycle
+  $(0.03\cdot\Dstar)$ remains below detection threshold.}
+\end{table}
+
+The synthetic-guest $\sigbase$ ($6{,}237$ cycle) sits within
+${\approx}13\%$ of the $L_1$-pchase baseline ($5{,}518$ cycle),
+consistent with both workloads inhabiting the same noise-floor
+regime characteristic of bare-RDTSC sampling under microcode
+\texttt{0x3e}; the modest elevation is attributable to the synthetic
+binary's conditional branch (\texttt{cmp + je}) introducing
+additional $\mu$op scheduling variance over pchase's straight-line
+loop. The Day~6b cross-boot probe ($n{=}69$, three independent boots
+in alternation) yielded $\sigbase = 5{,}614$ cycle for the same
+synthetic workload, agreeing with the Day~8 single-boot
+$\sigbase = 6{,}237$ within $\chi^2$ CI overlap --- providing $N{=}3$
+cross-boot replication for the synthetic workload class alongside
+the $N{=}34$ cross-boot result for pchase.
+
+$\scoreS = 1.0000$ across $N{=}34$ cross-boot trials (Clopper-Pearson
+$95\%$ upper bound $\leq 10.4\%$) confirms that fresh-boot discipline
+produces deterministic 4-tuple trajectories for the characterized
+workload classes.
+
+\subsection{Limitations}\label{sec:eval-lim}
+
+Four concrete limitations bound the current evaluation.
+
+\textbf{$N{=}34$ cross-boot sample.} The public-facing $\scoreS$
+bound ($\leq 10.4\%$) is wide, reflecting the 34-trial sample. The
+operational within-boot bound ($\leq 0.37\%$, $N{=}998$) is tighter
+but does not cover cross-boot microarchitectural variation.
+Expanding $N$ is straightforward mechanically; the primary cost is
+machine time.
+
+\textbf{$\hat{\sigma}$ confidence at $n{=}108$.} The $\Dstar$
+uncertainty range of $+15\%/{-}12\%$ (asymmetric $\chi^2$ CI on
+$\hat{\sigma}_{L_1\text{-pchase}}$) means detection sensitivity for
+effects near $\Dstar$ carries non-trivial uncertainty. Per-experiment
+recalibration at larger $n$ is deferred.
+
+\textbf{Single workload class.} All $\sigbase$ and FPR calibration
+is against $L_1$-pchase and $L_2$-pchase guest workloads.
+LLC-resident and DRAM-resident workload classes are not yet
+characterized; $\Dstar$ portability to these classes is not
+established.
+
+\textbf{Q4 modularity gap.} A1 (modularity) is asserted modulo
+side-effects below $\Dstar$ until the Q4 experiment validates strict
+side-effect freedom. Every CST claim issued under this evaluation
+therefore carries the \texttt{A1-modulo} flag.
+
+% =====================================================================
+\section{Discussion}\label{sec:discussion}
+
+\subsection{Scope Boundaries and Extensions}\label{sec:discussion-scope}
+
+\textbf{Multi-VCPU exploits.} Chronomaly-class race-condition
+exploits (CVE-2025-38352, POSIX CPU timer
+UAF~\cite{linuxkernel2025chronomaly}) and KVM SVM INT3 reinjection
+bugs (CVE-2025-68259~\cite{linuxkernel2025int3reinject}) depend on
+non-deterministic scheduling interactions between concurrent vCPUs:
+in the former, a TOCTOU race between
+\texttt{handle\_posix\_cpu\_timers()} and
+\texttt{posix\_cpu\_timer\_del()}; in the latter, a vCPU executes
+an INT3 byte while another CPU is concurrently text-poking the
+remainder of the instruction. EXTp's A4 (replay determinism)
+presupposes single-VCPU VM-exit trace capture; concurrent vCPU
+interleavings produce non-reproducible traces under fresh-boot
+replay. Extending CST to multi-VCPU requires augmenting A4 with an
+explicit interleaving model --- either a deterministic-scheduler
+constraint (every replay reproduces the original schedule) or a
+probabilistic equivalence relation over the schedule space ---
+analogous to CertiKOS's concurrent layer
+verification~\cite{gu2016certikos}. This is a designated future
+direction; v1.0 declines to issue CST claims over multi-VCPU
+traces rather than attempt unsound attribution.
+
+\textbf{Silent microarchitectural channels (CMD).} EXTp's A2
+observable surface (4-tuple plus timing above $\Dstar$) does not
+cover causal pathways that manifest exclusively in cache state,
+branch predictor history, or TLB entries without producing a
+4-tuple delta or timing excursion. Training Solo and VMScape
+(\S\ref{sec:related}) are concrete instances. The forthcoming
+Causal Microarchitectural Decomposition (CMD) property class
+extends A2 to PMU-counter-based surfaces (LLC miss rate, branch
+misprediction rate, iTLB miss rate), with per-channel calibrated
+detection thresholds analogous to MI's $\Dstar$. CMD validation
+requires (i)~per-channel $\sigbase$ estimation under the same
+fresh-boot discipline used for timing (\S\ref{sec:mi}), and
+(ii)~cross-channel independence testing to determine whether
+multiple PMU channels admit composition without inflating
+false-positive rate. The protocol is the SOE methodology applied
+per-channel.
+
+\textbf{A1-modulo as a methodological invariant.} The
+naïve/silent bifurcation in \S\ref{sec:eval-demo} illustrates that
+A1-modulo is not a one-time calibration but a discipline that
+applies to every extension of the intervention surface. Each new
+intervention class introduced in future work --- per-window scope,
+global scope, CMD-grounded interventions, multi-VCPU --- must
+re-establish that the intervention apparatus's framework-observable
+cost remains below the relevant detection threshold. The Q4
+modularity experiment (below) is the prototype protocol; subsequent
+extensions inherit its structure.
+
+\textbf{Intervention scope extensions.} CST v1.0 covers per-event
+intervention scope only. Per-window scope (sustaining a modification
+across a contiguous event range) and global scope (sustaining
+across the entire trace) require A1's modularity bound to hold
+under \emph{sustained} rather than instantaneous intervention. The
+Q4 modularity experiment is a prerequisite: per-window scope
+admissibility cannot be asserted without first validating that
+extended intervention duration does not amplify framework-observable
+side-effects above $\Dstar$.
+
+\textbf{Q4 modularity validation.} A1's current modulo-status (the
+\texttt{A1-modulo} flag carried by every CST claim in this paper)
+will be resolved by a dedicated experiment: measuring
+framework-observable state deltas (VMM scheduler dispatch timing,
+EPT modification counts, capability register state) under each
+validated intervention class, calibrated against per-observable
+noise floors. If side-effects are validated below $\Dstar$ across
+all framework observables, A1 is promoted to strict form in CST
+v1.1 and the \texttt{A1-modulo} flag is retired. If not, the
+affected observable classes are added to
+$\mathcal{S}_\text{out}$, narrowing the validity envelope rather
+than weakening the soundness claim.
+
+\textbf{AC3 minimality.} Halpern-Pearl AC3
+(\S\ref{sec:background}) requires the cause set to be minimal:
+no proper subset of the cause variables is sufficient. CST v1.0
+issues \emph{causal-link} claims and explicitly defers
+\emph{causal-explanation} claims. Extension to AC3 requires a
+search procedure over candidate intervention subsets, which is
+mechanically straightforward but computationally non-trivial; for
+$k$ candidate variables a naïve search is $O(2^k)$ replays.
+Group-testing strategies analogous to AID's
+approach~\cite{fariha2020aid} are the natural starting point.
+
+\subsection{Downstream Applications of CST}\label{sec:discussion-fuzz}
+
+EXTp's CST-grounded causal attribution enables two downstream
+application classes that conventional differential analysis cannot
+support without falling back on heuristic acceptance criteria.
+
+\textbf{Counterfactual fuzzing.} Conventional fuzzing treats
+divergence as a binary signal: a crash, a hang, or a sanitizer
+trip distinguishes interesting inputs from uninteresting ones.
+CST-grounded fuzzing extends this with an admissibility filter:
+each candidate intervention either produces a CST-admissible
+causal-link claim or it does not, and the framework reports the
+distinction. The output is a \emph{causal coverage map} ---
+intervention points indexed by validity envelope rather than by
+crash signature. \S\ref{sec:eval-demo-sweep} demonstrates the
+elementary instance: a 33-value sweep over $r_8$ correctly
+separates the single privileged-path input from 32 default-path
+inputs by the same admissibility machinery, with no heuristic
+acceptance threshold between the verdict classes. This is a
+demonstration of the falsifiability primitive on which a
+fuzzer-scale extension could build, not a fuzzing benchmark.
+Two failure modes that conventional fuzzing conflates are
+separated by the admissibility filter: behavioral coverage
+without causal attribution (divergence observed but admissibility
+fails, e.g., under A1-modulo violation, as in the naïve-hook
+arc of \S\ref{sec:eval-demo}) is distinguished from causal
+coverage without divergence (admissibility holds but
+$D = \text{false}$, indicating an intervention with no observable
+effect on this surface, as in the 32 default-path inputs of
+\S\ref{sec:eval-demo-sweep}). The first signals a need for
+instrumentation discipline; the second signals a need for
+surface extension (potentially via CMD).
+
+\textbf{Mitigation verification.} Once a patch is applied to the
+guest binary, counterfactual replay of the original exploit trace
+under the patched binary tests whether the causal pathway has
+been severed. The resulting CST claim has the same structural
+form but with $D = \text{false}$:
+$\langle \text{do}(X{=}x'_\text{exploit}) \rightsquigarrow_i \neg D
+\mid A; \mathcal{E}\rangle$. The patch is verified to sever the
+causal pathway iff (i)~admissibility holds (envelope match,
+assumption validation, intervention surface) and (ii)~no divergence
+is observed. Unlike behavioral regression testing, which can fail
+silently when the patched binary exercises a different code path
+incidentally, this verification is causal: the patch is
+attributable as the cause of non-divergence.
+
+\subsection{Isabelle Formalization Pathway}\label{sec:discussion-isabelle}
+
+The CST proof in \S\ref{sec:cst} is a semi-formal sketch. Full
+mechanization in Isabelle/HOL is deferred to future work, but its
+infrastructure is already in place. seL4's existing Isabelle proof
+harness~\cite{klein2014sel4} provides the formal substrate for
+$\Kverified$'s modularity proof; the CST sketch's
+threat-elimination structure (Coincidence / Silent mechanism /
+Confounder) maps onto Isabelle's tactic-based proof decomposition
+with each threat as a separate proof obligation. The primary
+technical challenge is formalizing EXTp's deterministic replay
+semantics in Isabelle's term language at an abstraction level that
+interfaces with seL4's existing machine model --- specifically,
+defining the equivalence relation $\approx_S$ over VM-exit
+trajectories such that A4's empirical $\scoreS{=}1.0000$ lifts to
+a structural determinism predicate. The empirical components (A3
+confounder bound, A4 cross-boot determinism) remain empirical in
+the mechanized proof: Isabelle establishes the conditional
+soundness theorem; calibration data supplies the antecedents.
+
+% =====================================================================
+\section{Related Work}\label{sec:related}
+
+\subsection{Counterfactual and Differential Analysis}
+
+The closest prior work to EXTp is AID~\cite{fariha2020aid} (Adaptive
+Interventional Debugging, SIGMOD 2020), which applies Pearl's
+do-calculus to debug intermittent failures in database applications
+via runtime interventions. AID combines causal analysis, fault
+injection, and group testing to identify root causes of
+nondeterministic failures. EXTp and AID share the Pearl-grounded
+intervention philosophy, but differ on three dimensions: AID targets
+database application failures in a probabilistic, multi-run
+statistical setting; EXTp targets hypervisor exploit execution on a
+formally verified microkernel in a deterministic single-configuration
+replay setting; and AID does not provide a formal soundness theorem
+for its causal attributions. EXTp's CST is the first such theorem,
+grounded in seL4's verified capability model.
+
+CacheWarp~\cite{zhang2024cachewarp} (USENIX Security 2024)
+demonstrates software-based fault injection on AMD SEV-ES/SNP by
+reverting modified cache lines to stale state, producing controlled
+execution divergence. CacheWarp uses controlled state perturbation
+to demonstrate AMD TEE integrity violations, sharing the
+surface-level pattern of intervention-induced divergence with EXTp
+but operating as an attack methodology rather than an analysis
+framework, and without a causal formalism.
+WeSee~\cite{schlueter2024wesee} (IEEE S\&P 2024) and
+Heckler~\cite{schlueter2024heckler} (USENIX Security 2024) inject
+malicious interrupts into AMD SEV-SNP and Intel TDX VMs to induce
+arbitrary register and memory modifications. WeSee and Heckler
+exploit the interrupt injection interface as an attack vector, with
+the hypervisor as adversary and the VM as target. EXTp inverts this
+stance: the VMM is the analyst, the intervention is methodologically
+controlled, and the goal is causal attribution rather than security
+violation. The interrupt injection surface motivates future
+extension of EXTp's intervention surface to cover \#VC and external
+interrupt boundaries (\S\ref{sec:discussion}).
+
+Soloviev and Halpern~\cite{soloviev2021nested} (arXiv 2021) extend
+the Halpern-Pearl framework to capture nested causal statements
+about security properties, where the causal relationship itself
+becomes the object of causal analysis. This is a conceptual
+extension of HP that does not provide an operational system. To our
+knowledge, no prior work applies Pearl's causal apparatus to exploit
+replay with a formal soundness proof over a verified substrate ---
+the gap that EXTp closes.
+
+\subsection{Hypervisor Exploit Surface}
+
+CVE-2024-21305~\cite{tandasat2024hvci} is an HVCI security feature
+bypass in Hyper-V enabling arbitrary kernel-mode code execution via
+non-secure VMCS configuration. The divergent execution path
+structure --- EPT permission misconfig producing observable VM-exit
+differences --- is the structural analog of EXTp's
+privilege-check-bypass demonstration (\S\ref{sec:eval-demo}).
+CVE-2025-22224 (and -22225/-22226)~\cite{broadcom2025vmsa} is a
+VMware ESXi guest-to-host escape chain (VMSA-2025-0004) demonstrating
+that VMM implementation bugs constitute an out-of-scope causal
+pathway for EXTp's current framework.
+
+Training Solo~\cite{barberis2025trainingsolo} (VUSec, IEEE S\&P
+2025) presents self-training Spectre-v2 attacks on Intel CPUs
+bypassing existing domain isolation mitigations, uncovering two
+hardware issues (CVE-2024-28956, CVE-2025-24495) that break
+guest-to-hypervisor isolation. VMScape~\cite{vmscape2025} (ETH
+Zurich, CVE-2025-40300, Sep 2025) exploits incomplete branch
+predictor isolation across guest/host boundaries on AMD Zen CPUs.
+Both demonstrate branch predictor state as a causal pathway falling
+within EXTp's declared silent microarchitectural channels scope
+boundary (\S\ref{sec:threat}). The CMD property class
+(\S\ref{sec:discussion}) is designed to bring this class ---
+alongside cache, TLB, and other microarchitectural side-state ---
+into a future observable surface; Training Solo and VMScape are
+concrete instances motivating CMD's design priorities.
+
+XSA-472~\cite{xsa472} (Xen Viridian interface, Sep 2025) reports a
+cluster of three vulnerabilities. The two NULL pointer dereferences
+(CVE-2025-27466, CVE-2025-58142) represent the class of
+framework-internal isolation violations that CapSep's disjointness
+requirement ($\Kint \cap \Kfwk = \emptyset$) is designed to prevent.
+The race condition (CVE-2025-58143) falls within EXTp's multi-VCPU
+scope boundary (\S\ref{sec:threat}); A4 deterministic replay
+requires future extension before such cases become tractable.
+
+\subsection{Formal Methods for Hypervisors}
+
+seL4~\cite{klein2009sel4,klein2014sel4} provides EXTp's formal trust
+anchor. CertiKOS~\cite{gu2016certikos} (Gu et al., OSDI 2016)
+verifies a concurrent OS kernel with fine-grained locking in Coq,
+including the mCertiKOS hypervisor extension. EXTp's choice of seL4
+over CertiKOS reflects substrate maturity for x86-64 VT-x extensions
+and seL4's established Isabelle/HOL proof harness; CertiKOS's
+compositional layered approach is an alternative formal substrate
+for future EXTp ports. Komodo~\cite{ferraiuolo2017komodo}
+(Ferraiuolo et al., SOSP 2017) verifies a software-based enclave
+monitor as an alternative to hardware secure-enclave implementations,
+proving isolation guarantees in Vale verified assembly on ARM. Both
+establish that formal verification of system software in the
+virtualization stack is tractable; EXTp builds on seL4 rather than
+providing a new verified kernel, contributing a formal soundness
+theorem for causal exploit analysis.
+
+\subsection{Causal Inference in Security}
+
+Pearl~\cite{pearl2009causality} and
+Halpern-Pearl~\cite{halpern2005causes} provide EXTp's theoretical
+foundation. Soloviev, Balliu, and
+Guanciale~\cite{soloviev2024modal} (IEEE CSF 2024) introduce a
+modal logic framework for security properties capturing
+confidentiality, integrity, and robust declassification variants.
+This operates at the policy specification level rather than the
+operational causal attribution level; it complements EXTp's
+approach.
+
+Prior applications of causal inference to security take two forms.
+Dependency tracking approaches such as
+BackTracker~\cite{king2003backtracking} (King and Chen, SOSP 2003)
+follow causal chains through system-call dependencies for intrusion
+forensics without invoking Pearl's structural causal models.
+Probabilistic causality inference approaches such as
+MCI~\cite{kwon2018mci} (Kwon et al., NDSS 2018) construct
+probabilistic graphical models over audit logs for attack
+reconstruction. EXTp's approach is categorically different: causal
+attribution via controlled counterfactual replay, grounded in a
+formal soundness theorem, replacing probabilistic assumptions with
+deterministic trajectory-level guarantees.
+
+% =====================================================================
+\section{Conclusion}\label{sec:conclusion}
+
+EXTp demonstrates that sound counterfactual causal attribution in
+exploit analysis is achievable from four ingredients: a formally
+verified capability substrate (seL4), and three observable
+properties bounding (i)~intervention authority disjointness
+(CapSep), (ii)~replay determinism (SOE), and (iii)~timing
+confounders (MI). The Counterfactual Soundness Theorem proves that
+their composition grounds Pearl and Halpern-Pearl causal
+attribution within explicitly enumerated epistemic bounds, and the
+\texttt{A1-modulo} flag propagation discipline ensures that
+unresolved assumption gaps are surfaced rather than absorbed. A
+bare-metal privilege-check-bypass demonstration exercises the
+pipeline end-to-end and, as a methodological side-effect, exposes
+an empirical test of CST's own assumption envelope: naïve and
+silent intervention hooks produce identical SOE-clause divergence
+but bifurcate on the timing clause, showing the framework
+correctly detecting its own A1-modulo violations.
+
+CST v1.0's scope is deliberately narrow: single-VCPU traces, a
+4-tuple plus timing observable surface, and per-event intervention
+scope. The natural extensions --- multi-VCPU determinism analogous
+to CertiKOS's concurrent-layer reasoning, the CMD property class
+extending A2 to PMU-counter surfaces, and per-window/global
+intervention scopes --- inherit CST's threat-elimination structure
+and require corresponding extensions of the empirical antecedents
+rather than new soundness machinery. Full Isabelle/HOL formalization
+of the CST proof, building on seL4's existing proof harness, is
+the natural next step toward replacing the semi-formal sketch in
+\S\ref{sec:cst} with a fully mechanized theorem. Each of these
+directions is bounded by an explicit assumption envelope; in
+EXTp's discipline, the boundary of soundness is named, not avoided.
+
+% =====================================================================
+\section*{Ethics Considerations}
+
+All experiments were conducted on isolated bare-metal hardware with
+no network connectivity. No human subjects, real user data, or
+production systems were involved. The privilege-check-bypass
+demonstration uses a controlled synthetic guest modeled on a public
+exploit pattern (CrackArmor confused-deputy cluster) and does not
+disclose any new vulnerability. CVE references appearing in
+\S\ref{sec:related} are used only for related work discussion. The
+counterfactual replay infrastructure operates post-hoc on already-
+captured exploit traces and provides no novel attack capability.
+
+% =====================================================================
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+% =====================================================================
+\appendices
+
+\section{$\Kextended$ Operation Enumeration}\label{app:kextended}
+
+$\Kextended$ comprises the x86-64 VT-x extension operations
+through which EXTp's intervention machinery interacts with guest
+state outside L4.verified's formal scope (\S\ref{sec:background}).
+The full operation set used in CST v1.0:
+
+\begin{itemize}[itemsep=2pt,topsep=2pt,leftmargin=*]
+\item \texttt{WriteRegisters} --- update guest GP register state
+  via \texttt{seL4\_X86\_VCPU\_WriteRegisters}. Used by the
+  intervention machinery to apply $\dox{x'}$ for state-class
+  interventions (\S\ref{sec:intervention}).
+\item \texttt{ReadVMCS} / \texttt{WriteVMCS} --- read/write
+  individual VMCS fields. Used by snapshot save/restore
+  (\S\ref{sec:framework}, 23 fields in Appendix~\ref{app:vmcs}).
+\item \texttt{MapEPT} / \texttt{UnmapEPT} --- guest-physical
+  address translation modification. Used by EPT-CoW restore.
+\item \texttt{EPTPermDowngrade} / \texttt{EPTPermRestore} ---
+  permission bits manipulation on EPT entries for CoW
+  checkpoint mechanism.
+\item \texttt{VMResume} / \texttt{VMLaunch} --- guest re-entry,
+  reading from the (potentially intervention-modified) VMCS and
+  register state.
+\item \texttt{TSCRead} (virtualized) --- monotonic TSC seed
+  delivery (\S\ref{sec:framework}); deterministic by construction.
+\end{itemize}
+
+Each operation's empirical disjointness from $\Kfwk$ is established
+by the Clopper-Pearson bounds reported in \S\ref{sec:capsep};
+within-boot bound $\leq 0.37\%$ at $N{=}998$, cross-boot bound
+$\leq 10.4\%$ at $N{=}34$.
+
+\section{Build Provenance}\label{app:build}
+
+\textbf{Toolchain.} EXTp VMM compiled with \texttt{gcc 12.3} at
+optimization level \texttt{-O2}, no link-time optimization.
+seL4 microkernel built from the master branch (commit hash
+recorded at artifact-release time, double-blind-redacted in
+submission). Build system: CMake + Ninja. Target triple:
+\texttt{x86\_64-pc99}.
+
+\textbf{Build artifacts.}
+\begin{itemize}[itemsep=2pt,topsep=2pt,leftmargin=*]
+\item \texttt{kernel-x86\_64-pc99} --- seL4 microkernel ELF, 3.3~MB.
+\item \texttt{extp-vmm-image-x86\_64-pc99} --- EXTp VMM rootserver
+  ELF, 881~KB.
+\end{itemize}
+
+\textbf{Build configuration flags for the demonstration run.}
+\texttt{EXTP\_DEMO\_BOOT=ON},
+\texttt{EXTP\_NUM\_RUNS\_OVERRIDE=222},
+\texttt{CST\_INTERVENTION\_VERBOSE=0} (silent hook).
+All other \texttt{EXTP\_*\_BOOT} modes set \texttt{OFF}.
+
+\textbf{Hardware identity.} Intel 12th Gen Core (Alder Lake),
+microcode revision \texttt{0x3e}, ASUS Z690 motherboard, UEFI
+firmware. P-state locked at 4.9~GHz turbo via firmware
+configuration. No host operating system; seL4 boots directly via
+the bootloader.
+
+\textbf{Out-of-band I/O.} Serial console: DIGITUS USB-Serial
+FT232RL, Digitus PCIe Serial DS-30000-1, RS-232 null modem cable
+at 115200 baud, 8N1.
+
+The complete reproducibility manifest --- source tree state, build
+flags, and the analysis scripts that produced
+Figures~\ref{fig:demo-silent}--\ref{fig:demo-comparison} and
+Table~\ref{tab:meas} --- will be released as an artifact
+accompanying the camera-ready paper.
+
+\section{VMCS Field Enumeration}\label{app:vmcs}
+
+EXTp's snapshot/restore mechanism (\S\ref{sec:framework})
+preserves 23 VMCS fields covering the guest's architectural
+state visible through the VT-x interface, plus four core
+registers (RIP, RSP, RFLAGS, CR3) handled separately. The 23
+VMCS fields fall into three categories:
+
+\textbf{Guest control state.} Guest activity state,
+interruptibility state, pending debug exceptions, IA32\_DEBUGCTL,
+IA32\_SYSENTER\_CS / \_ESP / \_EIP, VMCS link pointer.
+
+\textbf{Guest segment descriptors.} Selector, base, limit, and
+access-rights fields for the standard guest segments
+(CS, SS, DS, ES, FS, GS, LDTR, TR), plus GDTR and IDTR base/limit.
+
+\textbf{Guest exception and entry control.} VM-entry-controls,
+VM-entry-exception-error-code, VM-entry-instruction-length,
+guest-cr0-read-shadow, guest-cr4-read-shadow.
+
+\textbf{Non-restored fields} (intentionally omitted) include:
+host-state fields (constant across replay), derived/read-only
+fields (e.g., exit-information, computed from guest execution),
+and architectural state covered by the separate RIP/RSP/RFLAGS/CR3
+restore path. The exclusion rationale is correctness-preserving:
+non-restored fields are either invariant under replay or
+deterministically reconstructed from restored state.
+
+The exhaustive field list with VMCS field encodings and per-field
+restoration semantics is released in the build manifest
+(Appendix~\ref{app:build}).
+
+\section{Full Proofs}\label{app:proofs}
+
+This appendix expands the semi-formal sketch of
+Theorem~\ref{thm:cst} (\S\ref{sec:cst}) and provides the inductive
+proof of Proposition~1. The presentation is non-mechanized: it
+states each step in standard mathematical notation rather than in
+Isabelle/HOL syntax. \S\ref{sec:discussion-isabelle} discusses the
+mechanization pathway.
+
+\subsection{Notation and antecedent restatement}
+
+Let $\mathbb{E} = (e_0, e_1, \ldots, e_n)$ denote a trace of
+VM-exit events under EXTp's VMM, with each $e_i$ carrying the
+4-tuple observable surface plus per-event timing $\Delta_i$
+(\S\ref{sec:framework}). Write $\Korig$ for the original captured
+trace and $\Tcf$ for the counterfactual replay trace produced
+under intervention $\dox{x'}$. The divergence detection function
+is
+\begin{equation*}
+\begin{aligned}
+D(\Korig, \Tcf, i) =\ & \big[\text{observable}(\Korig)_i \neq \text{observable}(\Tcf)_i\big] \\
+                      & \vee\,\big[\,|\Delta_i^{\text{cf}} - \Delta_i^{\text{orig}}| > \Dstar\,\big].
+\end{aligned}
+\end{equation*}
+The validity envelope $\mathcal{E}$ is a tuple
+$(\text{instr}, \text{wl-class}, \text{gw-type}, \text{scope},
+\mathcal{S}_\text{in}, \mathcal{S}_\text{out})$ as defined in
+\S\ref{sec:framework}. The four CST antecedents
+(Table~\ref{tab:assumptions}) restated symbolically:
+
+\begin{itemize}[itemsep=2pt,topsep=2pt,leftmargin=*]
+\item \textbf{A1 (Modularity).} For any $\dox{x'}$ within the
+  validated intervention surface and any framework-internal
+  observable $W \in \Kfwk$:
+  $\Pr\big[\,|W_{\text{cf}} - W_{\text{orig}}| > \Dstar\,\big] \leq \delta_{\text{A1}}$
+  where $\delta_{\text{A1}}$ is bounded by CapSep's empirical
+  envelope (\S\ref{sec:capsep}). The current paper asserts A1
+  \emph{modulo} an unresolved Q4 experiment (the
+  \texttt{A1-modulo} flag).
+\item \textbf{A2 (Observable completeness over $\mathcal{S}_\text{in}$).}
+  For interventions in $\mathcal{S}_\text{in}$, any causal effect of
+  $\dox{x'}$ on the guest's execution either manifests as a 4-tuple
+  delta or as a per-event timing deviation above $\Dstar$.
+  Microarchitectural pathways outside $\mathcal{S}_\text{in}$
+  (\S\ref{sec:threat}) are explicitly out of A2's scope.
+\item \textbf{A3 (Confounder bound).} Per-event timing fluctuations
+  $|\Delta_i| < \Dstar$ under no intervention, with realized
+  false-positive rate $\arealized \leq \alpha$ (MI \S\ref{sec:mi}).
+\item \textbf{A4 (Replay determinism).} In the absence of
+  intervention, $\Korig$ and any fresh-boot replay $R$ satisfy
+  $\forall i:\ \text{observable}(\Korig)_i = \text{observable}(R)_i$
+  --- the operational statement of SOE (\S\ref{sec:soe}).
+\end{itemize}
+
+\subsection{Proof of Theorem~\ref{thm:cst} (atomic CST)}
+
+Theorem~\ref{thm:cst}'s biconditional has two directions: the
+``$\Rightarrow$'' direction (admissibility implies the four
+listed correspondence properties hold) and the
+``$\Leftarrow$'' direction (the four-step admissibility check is
+sufficient for the claim to be issued).
+
+\textbf{Direction ($\Leftarrow$): admissibility check $\Rightarrow$
+claim is emitted.} This direction is procedural: the four-step
+check (\S\ref{sec:intervention}) is an executable predicate. By
+construction, if envelope match, assumption validation, surface
+check, and intervention surface predicates all evaluate true,
+EXTp emits the CST claim; if any evaluates false, no claim is
+emitted. This direction is established by code-level inspection
+of the admissibility implementation, not by deductive proof.
+
+\textbf{Direction ($\Rightarrow$): claim emitted $\Rightarrow$
+correspondence properties hold.} This is the substantive
+direction, and we prove it via three lemmas eliminating
+alternative explanations for the observed divergence.
+
+\begin{lemma}[Coincidence elimination]
+\label{lem:coincidence}
+Under A4, $D(\Korig, \Tcf, i) = \text{true}$ via the SOE clause
+(4-tuple delta) cannot arise as spontaneous noise.
+\end{lemma}
+
+\textit{Proof.} Suppose for contradiction that
+$\text{observable}(\Korig)_i \neq \text{observable}(\Tcf)_i$ in the
+absence of any trace-distinguishing input difference. Then a fresh
+replay $R$ of $\Korig$ under identical conditions would, with
+positive probability, also produce a 4-tuple delta at event $i$.
+But A4 asserts $\forall i:\ \text{observable}(\Korig)_i =
+\text{observable}(R)_i$ over all $N{=}34$ cross-boot trials with
+$\scoreS = 1.0000$, with Clopper-Pearson upper bound
+$\leq 10.4\%$ on the per-run failure rate. Within this empirical
+envelope, spontaneous SOE-clause divergence is bounded above by
+SOE's Clopper-Pearson envelope (not eliminated); residual
+probability is absorbed into the validity envelope $\mathcal{E}$
+and reported per-run. The only controlled trace-distinguishing
+input under the single-configuration discipline is $\dox{x'}$.
+
+For the timing clause, the analogous argument is bounded by $\alpha$
+rather than zero: by A3, $\Pr[|\Delta_i^{\text{cf}} -
+\Delta_i^{\text{orig}}| > \Dstar \mid \text{no intervention}] \leq
+\arealized$. Coincidental timing-clause firing is bounded but not
+eliminated; the per-event $\arealized$ is reported in the validity
+envelope. \qed
+
+\begin{lemma}[Silent mechanism elimination over $\mathcal{S}_\text{in}$]
+\label{lem:silent}
+Under A2 restricted to $\mathcal{S}_\text{in}$, $D = \text{true}$
+admits no silent-pathway alternative explanation: either the
+divergence is observable on $\Korig$'s surface or no admissible
+claim is emitted.
+\end{lemma}
+
+\textit{Proof.} Suppose $\dox{x'}$ causally produces an effect on
+the guest's execution within $\mathcal{S}_\text{in}$. By A2, this
+effect manifests as either a 4-tuple delta or a timing deviation
+above $\Dstar$, i.e., $D(\Korig, \Tcf, i) = \text{true}$ for some
+event $i$. Contrapositively, if $D = \text{false}$ for all $i$, no
+admissible claim is emitted --- CST is scope-honestly silent. If
+$D = \text{true}$, the divergence is by construction on $\Korig$'s
+observable surface, so the claim
+$\dox{x'} \rightsquigarrow_i D$ is an attribution at the surface
+level. Note that this lemma is restricted to
+$\mathcal{S}_\text{in}$; pathways in $\mathcal{S}_\text{out}$
+(silent microarchitectural channels, \S\ref{sec:threat}) are
+explicitly outside A2's coverage. \qed
+
+\begin{lemma}[Confounder elimination modulo A1]
+\label{lem:confounder}
+Under A1, no third factor $Z$ correlated with $\dox{x'}$ can
+produce the divergence $D$.
+\end{lemma}
+
+\textit{Proof.} Suppose for contradiction that a confounder
+$Z \in \Kfwk$ exists such that $Z$ correlates with $\dox{x'}$ and
+$Z$ also influences observable$(X)_i$. Pearl's modularity axiom
+(realized by CapSep as $\Kint \cap \Kfwk = \emptyset$) requires
+that $\dox{x'}$ severs all incoming causal connections to $X$
+that pass through framework-internal pathways. The empirical
+content of A1 is the probabilistic statement
+$\Pr[|W_{\text{cf}} - W_{\text{orig}}| > \Dstar] \leq
+\delta_{\text{A1}}$ for any $W \in \Kfwk$; under
+$\delta_{\text{A1}}$ bounded by CapSep's Clopper-Pearson envelope
+(\S\ref{sec:capsep}), any such $Z$ would manifest as a
+framework-observable side-effect exceeding the noise floor with
+probability $\leq \delta_{\text{A1}}$. By A3, framework-observable
+side-effects below $\Dstar$ are absorbed into the timing
+confounder noise model; side-effects above $\Dstar$ are detected
+by CapSep's empirical surface. The residual confounder
+contribution is therefore bounded above by the union of
+$\delta_{\text{A1}}$ and $\arealized$; both are reported in the
+validity envelope. Until the Q4 experiment resolves
+$\delta_{\text{A1}}$ to a strict bound, A1 is asserted modulo
+side-effects below $\Dstar$ on framework observables, and the
+\texttt{A1-modulo} flag propagates to every CST claim. \qed
+
+\textbf{Composition into Theorem~\ref{thm:cst}.} Given the three
+lemmas, the four correspondence properties (i)--(iv) in
+Theorem~\ref{thm:cst} follow directly:
+
+(i) \emph{Effectiveness.} By construction of the intervention
+machinery (\S\ref{sec:intervention}), $\dox{x'}$ sets $X$ to
+$x'$ at event $e_i$; this is mechanically verifiable from the
+post-intervention VMCS state.
+
+(ii) \emph{Composition (modulo A1).} Composition holds when
+intervening on $X$ while holding $W$ at its natural value $w$
+produces the same outcome as $\dox{x'}$ alone when $W_x = w$. By
+Lemma~\ref{lem:confounder}, $W$'s framework-internal value
+$W_{\text{cf}}$ remains within $\delta_{\text{A1}}$ of
+$W_{\text{orig}}$; under the A1-modulo qualifier, composition
+inherits the same modulo status.
+
+(iii) \emph{HP AC1.} $D$ occurs in $\Tcf$ at event $i$ by the
+fourth admissibility step ($D = \text{true}$); AC1's ``actual
+world'' is $\Tcf$ in CST's reframing (Theorem~\ref{thm:cst}
+footnote).
+
+(iv) \emph{HP AC2(a)+(b).} AC2(a) requires that under an
+alternative assignment, the effect changes:
+$D(\Korig, \Tcf, i) = \text{true}$ means that under the natural
+assignment $X = x$ in $\Korig$, the effect (4-tuple at $i$) is
+$\text{observable}(\Korig)_i$, distinct from
+$\text{observable}(\Tcf)_i$ under $\dox{x'}$. AC2(b)'s hold-fixed
+condition is satisfied by the validity envelope's
+$\mathcal{S}_\text{in}$ specification: variables outside the
+intervention scope are held at their actual values by EXTp's
+fresh-boot replay discipline.
+
+Thus all four properties hold under the assumption envelope
+$(A_1, A_2, A_3, A_4)$ with the explicit modulo qualifiers
+documented in Table~\ref{tab:pearl}. \qed
+
+\subsection{Proof of Proposition~1 (sequential composition)}
+
+\begin{proof}[Proof of Proposition~1]
+By induction on chain length $n$.
+
+\emph{Base case ($n{=}1$).} The chain
+$\langle \text{do}(X_1) \rightsquigarrow_{i_1} D \rangle$ is a
+single atomic claim, admissible iff Theorem~\ref{thm:cst} holds,
+which is given.
+
+\emph{Inductive step.} Assume admissibility of the
+$n$-step chain
+$\langle \text{do}(X_1) \rightsquigarrow_{i_1} \cdots
+\rightsquigarrow_{i_n} D \mid A; \mathcal{E}\rangle$. We show
+admissibility of the $(n{+}1)$-step extension
+$\langle \text{do}(X_1) \rightsquigarrow_{i_1} \cdots
+\rightsquigarrow_{i_n} \rightsquigarrow_{i_{n+1}} D' \mid A;
+\mathcal{E}\rangle$, where $D'$ is the divergence observed after
+the $(n{+}1)$-th intervention.
+
+By the inductive hypothesis, the prefix chain produces a
+$\Tcf^{(n)}$ trace whose observable surface and timing satisfy
+the four correspondence properties of Theorem~\ref{thm:cst} under
+$(A_1^{(n)}, A_2, A_3, A_4)$, where $A_1^{(n)}$ denotes the A1
+bound after $n$ interventions. The $(n{+}1)$-th intervention,
+$\text{do}(X_{n+1} = x_{n+1}')$, is by construction a member of the
+validated intervention surface and operates on
+$\Tcf^{(n)}$ as its baseline. Applying Theorem~\ref{thm:cst} to
+the atomic step $\langle \text{do}(X_{n+1}) \rightsquigarrow_{i_{n+1}}
+D' \mid A; \mathcal{E}\rangle$ with $\Tcf^{(n)}$ as the original
+trace yields admissibility for the extended chain, with
+$A_1^{(n+1)} \leq A_1^{(n)} + \delta_{\text{A1}}$ (A1's modulo
+bound accumulating by union bound across interventions).
+
+The key non-trivial step is that CapSep's per-operation
+disjointness (\S\ref{sec:capsep}) is order-independent: each
+$\Kint$ operation remains disjoint from $\Kfwk$ regardless of
+execution order, so A1's structural component does not degrade
+under sequential composition. The empirical $\delta_{\text{A1}}$
+accumulates by union bound; tighter bounds under independence
+are not asserted. The accumulated envelope is reported in
+$\mathcal{E}$.
+
+Commutativity is \emph{not} asserted: the order
+$X_1 \to X_2 \to \cdots \to X_{n+1}$ is part of the claim's
+specification. Reordering to a permutation $X_{\pi(1)} \to \cdots
+\to X_{\pi(n+1)}$ produces a distinct claim that must be verified
+separately. The induction therefore proves admissibility under
+the specified ordering only.
+\end{proof}
+
+\subsection{Scope and limitations of these proofs}
+
+These proofs establish CST as a semi-formal mathematical
+theorem under EXTp's notation and antecedent system. Three
+explicit limitations apply.
+
+\textbf{Mechanization gap.} The proofs are not mechanically
+checked. Translation to Isabelle/HOL requires formalizing the
+trace data type, the divergence predicate $D$, and the
+four-step admissibility check in Isabelle's term language at
+an abstraction interfacing with seL4's existing machine model
+(\S\ref{sec:discussion-isabelle}). Until mechanized, each lemma
+should be read as a careful mathematical argument, not a
+formally checked derivation.
+
+\textbf{Empirical content of A1, A3, A4.} A1's
+$\delta_{\text{A1}}$, A3's $\arealized$, and A4's
+high-confidence empirical $\scoreS$ are not derived from first
+principles; they are estimated from calibration data
+(\S\S\ref{sec:capsep}, \ref{sec:mi}, \ref{sec:soe}). The theorem
+is conditional on these empirical antecedents; the proof
+operates on the antecedents symbolically.
+
+\textbf{Out-of-scope mechanism classes.} The proofs do not address
+multi-VCPU race conditions (out of A4's deterministic-replay
+scope) or silent microarchitectural channels (out of A2's
+$\mathcal{S}_\text{in}$ scope). These are explicit scope
+boundaries (\S\ref{sec:threat}), not theorem failures: CST
+issues no claim under conditions where its antecedents do not
+hold.
+
+\section{Use of AI Tools}\label{app:ai-disclosure}
+
+In accordance with the NDSS 2027 generative AI disclosure
+policy, the authors disclose the following.
+
+Anthropic's Claude was used during paper preparation in an
+assistive capacity, limited to: (i)~iterative refinement of
+figure-rendering code (matplotlib scripts for
+Figures~\ref{fig:demo-silent}--\ref{fig:demo-sweep} and TikZ
+code for Figure~\ref{fig:arch}); (ii)~editorial polishing of
+phrasing in selected paragraphs and figure captions, comparable
+in scope to copy-editing for grammar, clarity, and notation
+consistency; (iii)~sanity-checking of mathematical notation
+across sections (e.g., consistent use of macros such as
+$\Korig$, $\Tcf$, $\Dstar$).
+
+The scientific contributions of this paper --- the formulation
+of the Counterfactual Soundness Theorem, the three-property
+decomposition (CapSep, SOE, MI), the A1-modulo flag
+propagation discipline, the Pearl/Halpern-Pearl correspondence
+mapping, the threat model and validity envelope construction,
+the experimental design and execution (cross-boot trials,
+$\sigbase$ calibration, intervention sweep), all data
+collection, and the proofs in Appendix~\ref{app:proofs} ---
+are the authors' original intellectual work. No section,
+subsection, theorem, definition, proof step, claim, or
+empirical result was generated by AI tools. The authors take
+full responsibility for the veracity and correctness of all
+material in this paper.
+
+\end{document}
