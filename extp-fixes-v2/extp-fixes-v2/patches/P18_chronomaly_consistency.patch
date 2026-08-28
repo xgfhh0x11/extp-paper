@@ -1,0 +1,50 @@
+% =====================================================================
+% PATCH P18 — Chronomaly Cross-Reference Consistency Flags
+% =====================================================================
+% Master ID: (new — second wave)
+% File: extp.tex
+% Approximate lines: 1349 (§VII-A) and footnote at line 193 (§II opening)
+%
+% PURPOSE: Chronomaly (CVE-2025-38352) appears in three places in
+% the paper, in subtly different framings:
+%   - §II footnote: "scope boundary example, not a demonstration
+%     target" (good — already explicit)
+%   - §III Out of Scope: "Multi-VCPU concurrent exploits ... e.g.,
+%     Chronomaly-class POSIX timer races" (good — sets scope)
+%   - §VII-A: "Chronomaly-class race-condition exploits...
+%     non-deterministic scheduling interactions between concurrent
+%     vCPUs" (motivates multi-VCPU extension)
+%
+% A reviewer scanning all three may briefly confuse Chronomaly with
+% the demo target (since it's mentioned three times prominently).
+% This patch adds a small parenthetical disambiguating flag in §VII-A
+% so the reader's mental model stays clean.
+% =====================================================================
+
+%%% OLD %%%
+% \textbf{Multi-VCPU exploits.} Chronomaly-class race-condition
+% exploits (CVE-2025-38352, POSIX CPU timer
+% UAF~\cite{linuxkernel2025chronomaly}) and KVM SVM INT3 reinjection
+% bugs (CVE-2025-68259~\cite{linuxkernel2025int3reinject}) depend on
+
+%%% NEW %%%
+% \textbf{Multi-VCPU exploits.} Chronomaly-class race-condition
+% exploits (CVE-2025-38352, POSIX CPU timer
+% UAF~\cite{linuxkernel2025chronomaly}; declared scope boundary,
+% \S\ref{sec:threat}) and KVM SVM INT3 reinjection bugs
+% (CVE-2025-68259~\cite{linuxkernel2025int3reinject}) depend on
+
+% NOTE: Single parenthetical insert: "declared scope boundary,
+% §\ref{sec:threat}". This reminds the reader (and reviewer) that
+% Chronomaly is being discussed as a motivation example for what
+% CST v1.0 does NOT cover, not as a system EXTp targets.
+%
+% No edit needed in §II footnote — that already says
+% "scope boundary example, not a demonstration target". Pattern is
+% consistent.
+%
+% No edit needed in §III — that's the canonical scope declaration
+% itself.
+%
+% Lowest priority of the wave-2 patches. Skippable if you'd rather
+% conserve the page-budget impact (negligible — single parenthetical).

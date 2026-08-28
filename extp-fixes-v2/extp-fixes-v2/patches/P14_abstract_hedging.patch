@@ -1,0 +1,42 @@
+% =====================================================================
+% PATCH P14 — Abstract: "1.0000" Empirical-Bound Hedging
+% =====================================================================
+% Master ID: (new — second wave)
+% File: extp.tex
+% Approximate line: 86-89 (in \begin{abstract})
+%
+% PURPOSE: Abstract currently mentions "scoreS=1.0000 over N=34
+% cross-boot trials" without the Clopper-Pearson bound that paper
+% body always carries. This asymmetry — hedged headline claim vs.
+% bare 1.0000 numbers — gives a reviewer the cleanest "overclaiming"
+% angle. Fix is one-sentence hedge that aligns abstract with the
+% paper's own §V-B discipline ("the '1.0000' framing is high-confidence
+% empirical, not categorical").
+% =====================================================================
+
+%%% OLD %%%
+% Separation (Pearl modularity; Clopper-Pearson bound
+% ${\leq}0.37\%$ at $N{=}998$), Strong Observational Equivalence
+% (replay determinism, $\scoreS{=}1.0000$ over $N{=}34$ cross-boot
+% trials), and Measurement Interference (calibrated timing threshold,
+
+%%% NEW %%%
+% Separation (Pearl modularity; Clopper-Pearson bound
+% ${\leq}0.37\%$ at $N{=}998$), Strong Observational Equivalence
+% (replay determinism: $\scoreS{=}1.0000$ observed over $N{=}34$
+% cross-boot trials, Clopper-Pearson one-sided $95\%$ upper bound on
+% the per-run failure rate ${\leq}10.4\%$), and Measurement
+% Interference (calibrated timing threshold,
+
+% NOTE: Three changes in one sentence:
+%   1. "replay determinism, scoreS=1.0000" -> "replay determinism:
+%      scoreS=1.0000 observed" (the colon and "observed" both signal
+%      empirical rather than categorical claim).
+%   2. Append the Clopper-Pearson upper bound that the body always
+%      carries.
+%   3. Symmetry with the CapSep claim earlier in the sentence, which
+%      already lists "Clopper-Pearson bound <=0.37% at N=998".
+%
+% After this fix, every empirical headline number in the abstract
+% comes with its bound. Reviewer's "overclaiming" angle is structurally
+% closed.

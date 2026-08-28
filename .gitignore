@@ -1,0 +1,5 @@
+# Isabelle
+isabelle/.isabelle/
+**/*.thy~
+# scratch
+*.tmp

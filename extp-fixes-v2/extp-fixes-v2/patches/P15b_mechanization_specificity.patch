@@ -1,0 +1,80 @@
+% =====================================================================
+% PATCH P15b — §VII-C: Mechanization Difficulty Specificity
+% =====================================================================
+% Master ID: (new — second wave)
+% File: extp.tex
+% Approximate line: 1488-1497
+%
+% PURPOSE: Current §VII-C identifies the mechanization challenge as
+% "defining the equivalence relation ≈S over VM-exit trajectories
+% such that A4's empirical scoreS=1.0000 lifts to a structural
+% determinism predicate." This is specific but doesn't explain WHY
+% the lift is non-trivial. Reviewer can read it as "they didn't try
+% hard enough."
+%
+% This patch unpacks the difficulty into TWO concrete sub-problems:
+%   (1) abstraction-layer gap between seL4's existing machine model
+%       (operates over abstract event traces) and EXTp's VM-exit
+%       trace surface (VT-x microarchitectural state)
+%   (2) the meta-question of how to represent empirical probability
+%       mass in Isabelle's HOL setting (open research question, not
+%       a missing tactic)
+% =====================================================================
+
+%%% OLD %%%
+% The primary technical challenge is formalizing EXTp's deterministic
+% replay semantics in Isabelle's term language at an abstraction
+% level that interfaces with seL4's existing machine model ---
+% specifically, defining the equivalence relation $\approx_S$ over
+% VM-exit trajectories such that A4's empirical $\scoreS{=}1.0000$
+% lifts to a structural determinism predicate. The empirical
+% components (A3 confounder bound, A4 cross-boot determinism) remain
+% empirical in the mechanized proof: Isabelle establishes the
+% conditional soundness theorem; calibration data supplies the
+% antecedents.
+
+%%% NEW %%%
+% The primary technical challenge has two specific layers, neither
+% reducible to a missing tactic:
+%
+% First, an \emph{abstraction-layer gap}. seL4's existing Isabelle
+% machine model~\cite{klein2014sel4} is defined over abstract event
+% traces at the kernel-API level; EXTp's VM-exit trace surface is
+% defined over VT-x microarchitectural state (VMCS fields, EPT
+% mappings, register file contents). Bridging the two requires a
+% lifting from the seL4 abstract machine state to EXTp's
+% concrete VM-exit observable surface --- a mapping that does not
+% currently exist in the L4.verified harness and would constitute a
+% standalone contribution. The equivalence relation $\approx_S$ over
+% VM-exit trajectories must be defined at the granularity of this
+% lifting, not at the granularity of seL4's existing trace
+% abstractions.
+%
+% Second, an \emph{empirical-to-structural lifting} question. A4's
+% empirical content is a probability bound ($\scoreS{=}1.0000$
+% observed; Clopper-Pearson per-run failure rate $\leq 10.4\%$ at
+% $N{=}34$); lifting this into a structural determinism predicate
+% in Isabelle/HOL requires a choice of modal context for representing
+% empirical probability mass. Standard HOL is set-theoretic and does
+% not carry a probability monad natively; whether to use a
+% probabilistic HOL extension (e.g., HOL-Probability), an axiomatic
+% empirical-envelope layer, or a hybrid construction is an open
+% research design choice. CST's empirical antecedents (A3
+% confounder bound, A4 cross-boot determinism) remain empirical in
+% any mechanized proof: Isabelle establishes the conditional
+% soundness theorem; calibration data supplies the antecedents.
+% The open question is the \emph{interface format} between empirical
+% calibration and Isabelle's term language, not whether Isabelle can
+% express conditional soundness.
+
+% NOTE: This expansion roughly doubles the length of §VII-C (from
+% one paragraph to three). It is justified because:
+%   1. It directly pre-empts the "lazy/didn't try" reviewer reading.
+%   2. The two-layer breakdown is the actual research situation —
+%      this isn't hedging, it's accurate.
+%   3. NDSS allows page space for honest discussion; §VII has room.
+%
+% The closing reframe ("the open question is the interface format,
+% not whether Isabelle can express conditional soundness") explicitly
+% closes the door on "well, just use Isabelle" hand-waving from a
+% reviewer who isn't an Isabelle expert.
