@@ -1741,6 +1741,20 @@ virtualization stack is tractable; EXTp builds on seL4 rather than
 providing a new verified kernel, contributing a formal soundness
 theorem for causal exploit analysis.
 
+The object of mechanization also differs. seL4, CertiKOS, and Komodo
+machine-check the \emph{substrate} --- kernel or monitor correctness,
+with the proof closing over the implementation. EXTp's Isabelle
+development (\S\ref{sec:discussion-isabelle}) machine-checks the
+\emph{analysis method}: CST's conditional core is proved over an
+abstract surface and trace model, and substrate correctness enters
+only as the named hypothesis $A_1$. The two are complementary --- a
+substrate proof discharges $A_1$ for $\Kverified$, and our
+development isolates exactly that obligation as one locale
+assumption --- but neither subsumes the other: a verified kernel
+says nothing about causal attributability of a divergence, and
+CST's mechanization says nothing about the kernel meeting its
+specification.
+
 \subsection{Causal Inference in Security}
 
 Pearl~\cite{pearl2009causality} and
