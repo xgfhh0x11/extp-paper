@@ -1747,13 +1747,11 @@ with the proof closing over the implementation. EXTp's Isabelle
 development (\S\ref{sec:discussion-isabelle}) machine-checks the
 \emph{analysis method}: CST's conditional core is proved over an
 abstract surface and trace model, and substrate correctness enters
-only as the named hypothesis $A_1$. The two are complementary --- a
-substrate proof discharges $A_1$ for $\Kverified$, and our
-development isolates exactly that obligation as one locale
-assumption --- but neither subsumes the other: a verified kernel
-says nothing about causal attributability of a divergence, and
-CST's mechanization says nothing about the kernel meeting its
-specification.
+only as the named hypothesis $A_1$. The two are complementary, not
+nested: a substrate proof discharges $A_1$ for $\Kverified$ ---
+our development isolates exactly that obligation as one locale
+assumption --- while a verified kernel says nothing about causal
+attributability of a divergence.
 
 \subsection{Causal Inference in Security}
 
@@ -1791,28 +1789,23 @@ properties bounding (i)~intervention authority disjointness
 confounders (MI). The Counterfactual Soundness Theorem proves that
 their composition grounds Pearl and Halpern-Pearl causal
 attribution within explicitly enumerated epistemic bounds, and the
-\texttt{A1-modulo} flag propagation discipline ensures that
-unresolved assumption gaps are surfaced rather than absorbed. A
-bare-metal privilege-check-bypass demonstration exercises the
-pipeline end-to-end and, as a methodological side-effect, exposes
-an empirical test of CST's own assumption envelope: naïve and
-silent intervention hooks produce identical SOE-clause divergence
-but bifurcate on the timing clause, showing the framework
-correctly detecting its own A1-modulo violations.
+\texttt{A1-modulo} discipline surfaces unresolved assumption gaps
+rather than absorbing them. A bare-metal privilege-check-bypass
+demonstration exercises the pipeline end-to-end and doubles as an
+empirical test of CST's own envelope: naïve and silent
+intervention hooks produce identical SOE-clause divergence but
+bifurcate on the timing clause --- the framework detecting its own
+A1-modulo violations.
 
-CST v1.0's scope is deliberately narrow: single-VCPU traces, a
-4-tuple plus timing observable surface, and per-event intervention
-scope. The natural extensions --- multi-VCPU determinism analogous
-to CertiKOS's concurrent-layer reasoning, the CMD property class
-extending A2 to PMU-counter surfaces, and per-window/global
-intervention scopes --- inherit CST's threat-elimination structure
-and require corresponding extensions of the empirical antecedents
-rather than new soundness machinery. The CST proof's conditional
-core is machine-checked in Isabelle/HOL
-(\S\ref{sec:discussion-isabelle}); what remains --- the seL4
-lifting and a settled calibration/HOL interface --- the conditional
-theorem does not depend on. Each direction is bounded by an
-explicit assumption envelope; in EXTp's discipline, the boundary of
+CST v1.0's scope is deliberately narrow (single-VCPU traces, a
+4-tuple plus timing surface, per-event intervention scope); its
+extensions (\S\ref{sec:discussion-scope}) inherit the
+threat-elimination structure and require extended empirical
+antecedents rather than new soundness machinery. The proof's
+conditional core is machine-checked in Isabelle/HOL
+(\S\ref{sec:discussion-isabelle}); the seL4 lifting and the
+calibration/HOL interface remain open, and the conditional theorem
+does not depend on them. In EXTp's discipline, the boundary of
 soundness is named, not avoided.
 
 % =====================================================================
