@@ -1316,9 +1316,10 @@ accounting would suggest. The instantiation is machine-checked
     (gray, $D{=}\text{false}$, SOE clause silent, no admissible
     divergence claim) versus the single privileged-path input
     \texttt{0xDEAD} (dark red, $D{=}\text{true}$, SOE clause
-    fires, admissible CST claim emitted). The map is the per-input
-    output of the same admissibility machinery used in the
-    single-intervention demonstration. The 33-input sweep
+    fires, admissible CST claim emitted). The envelope over this
+    exact 32/1 sweep is machine-checked
+    (\texttt{dead\_sweep\_envelope\_vs\_naive\_swept},
+    Table~\ref{tab:mechanized}). The 33-input sweep
     demonstrates the falsifiability primitive: the framework's
     verdict separates structurally on $D$'s observable predicate,
     rather than on heuristic crash signatures or aggregate metrics.
