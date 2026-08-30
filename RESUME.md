@@ -73,11 +73,12 @@ scripti: `scratchpad/check.py` (ref/cite/graphics/env dengesi), `scratchpad/wc.p
 Mekanizasyonda **anlamlı iş büyük ölçüde bitti.** Kalan seçenekler:
 - **g-tam:** `verified_no_fwk_touch`'ı gerçek seL4 ispatından türet → ❌ çok-yıllık, kapsamda değil.
 - **Konsolidasyon:** olduğumuz yerde durup paper'ı cilalamak (önerilen).
-- ✅ §Related formal-methods karşılaştırması eklendi (substrate vs analysis-method,
-  commit b9794b8). Gövde s.13'te bitiyor (Overleaf'te 2026-08-30 doğrulandı) — **pay
-  ~sıfır, gövdeye kelime EKLEME**; yeni içerik yalnızca appendix'e.
-- App A'ya kısa "mechanized fragment" tablosu (appendix, sınırı etkilemez).
-- Bir figürün mekanizasyonu yansıtması.
+- ✅ §Related formal-methods karşılaştırması (substrate vs analysis-method, b9794b8)
+- ✅ Appendix `tab:mechanized` — 19 bileşen → Isabelle fact → assumed/proved/model (5280b30)
+- ✅ `fig:demo-sweep` caption → `dead_sweep_envelope_vs_naive_swept` (cced441)
+- **Overleaf 2026-08-30: gövde s.13'te bitiyor, taşma yok. Pay ~sıfır — gövdeye kelime
+  EKLEME; yeni içerik yalnızca appendix'e.**
+- Kalan: `SUBMISSION_CHECKLIST.md` üzerinden son gözden geçirme.
 
 ---
 
