@@ -1733,13 +1733,10 @@ over CertiKOS reflects substrate maturity for x86-64 VT-x extensions
 and seL4's established Isabelle/HOL proof harness; CertiKOS's
 compositional layered approach is an alternative formal substrate
 for future EXTp ports. Komodo~\cite{ferraiuolo2017komodo}
-(Ferraiuolo et al., SOSP 2017) verifies a software-based enclave
-monitor as an alternative to hardware secure-enclave implementations,
-proving isolation guarantees in Vale verified assembly on ARM. Both
-establish that formal verification of system software in the
-virtualization stack is tractable; EXTp builds on seL4 rather than
-providing a new verified kernel, contributing a formal soundness
-theorem for causal exploit analysis.
+(Ferraiuolo et al., SOSP 2017) verifies a software enclave monitor
+in Vale verified assembly on ARM. Both show that verifying system
+software in the virtualization stack is tractable; EXTp builds on
+seL4 rather than providing a new verified kernel.
 
 The object of mechanization also differs. seL4, CertiKOS, and Komodo
 machine-check the \emph{substrate} --- kernel or monitor correctness,
@@ -1781,13 +1778,12 @@ deterministic trajectory-level guarantees.
 % =====================================================================
 \section{Conclusion}\label{sec:conclusion}
 
-EXTp demonstrates that sound counterfactual causal attribution in
-exploit analysis is achievable from four ingredients: a formally
-verified capability substrate (seL4), and three observable
-properties bounding (i)~intervention authority disjointness
-(CapSep), (ii)~replay determinism (SOE), and (iii)~timing
-confounders (MI). The Counterfactual Soundness Theorem proves that
-their composition grounds Pearl and Halpern-Pearl causal
+EXTp shows that sound counterfactual causal attribution in exploit
+analysis follows from a verified capability substrate (seL4) and
+three observable properties bounding intervention authority
+(CapSep), replay determinism (SOE), and timing confounders (MI).
+The Counterfactual Soundness Theorem proves that their composition
+grounds Pearl and Halpern-Pearl causal
 attribution within explicitly enumerated epistemic bounds, and the
 \texttt{A1-modulo} discipline surfaces unresolved assumption gaps
 rather than absorbing them. A bare-metal privilege-check-bypass
