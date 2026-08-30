@@ -2530,6 +2530,47 @@ sweep instantiation are machine-checked
 These proofs establish CST as a mathematical theorem under EXTp's
 notation and antecedent system. Three explicit limitations apply.
 
+\textbf{Mechanized fragment.} Table~\ref{tab:mechanized} maps the
+components of the argument above to the corresponding facts in the
+Isabelle/HOL development (94 facts, no unproved obligations,
+Isabelle2025-1). Rows marked \emph{assumed} are hypotheses of the
+\texttt{cst\_assumptions} or \texttt{sel4\_lifting} locale, not
+theorems; rows marked \emph{model} are consistency witnesses
+showing the locales are non-vacuous.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{Correspondence between the proof of Appendix~\ref{app:proofs}
+and the Isabelle/HOL development.}
+\label{tab:mechanized}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Paper component & Isabelle fact & Status \
+\midrule
+$A_1$--$A_4$ (Table~\ref{tab:assumptions}) & locale \texttt{cst\_assumptions} & assumed \
+Effectiveness of $\dox{x'}$ & \texttt{apply\_iv\_severs}, \texttt{effective\_holds} & proved \
+$\Leftarrow$ direction (emission) & \texttt{left\_direction} & proved \
+Lemma~\ref{lem:coincidence-soe} & \texttt{coincidence\_soe\_bound} & proved \
+Lemma~\ref{lem:coincidence-timing} & \texttt{coincidence\_timing\_bound} & proved \
+Lemma~\ref{lem:confounder} & \texttt{confounder\_bound} & proved \
+Lemma~\ref{lem:silent} ($\Rightarrow$, $\Leftarrow$) & \texttt{silent\_no\_missed\_effect}, \texttt{silent\_emission\_complete} & proved \
+HP AC2(a), two witnesses & \texttt{ac2a\_iff\_wit}, \texttt{witnesses\_logically\_independent} & proved \
+HP AC2(b) + union bound & \texttt{ac2b\_holds}, \texttt{w2\_residual\_bound} & proved \
+Per-witness envelope, regime criterion & \texttt{structural\_bound\_tighter\_iff} & proved \
+Theorem~\ref{thm:cst} ($\Rightarrow$) & \texttt{cst\_conditional} & proved \
+Scope-completeness (A2) & \texttt{cst\_scope\_complete}, \texttt{silent\_leak\_only\_out\_of\_scope} & proved \
+Proposition~1, sequential & \texttt{chain\_iff\_all\_atomic}, \texttt{accum\_delta\_linear\_bound} & proved \
+Proposition~1, parallel ensemble & \texttt{sweep\_three\_level\_bound} & proved \
+Sweep instantiation (\S\ref{sec:eval-demo}) & \texttt{dead\_sweep\_envelope\_vs\_naive\_swept} & proved \
+Within-/cross-boot calibration & \texttt{cst\_withinboot}, \texttt{cst\_crossboot} & model \
+$\Kverified/\Kextended$ partition & \texttt{k\_partition\_disjoint}, \texttt{k\_partition\_complete} & proved \
+seL4 external atomicity & \texttt{verified\_no\_fwk\_touch} & assumed \
+$A_1$ for $\Kverified$ ($\delta_{\text{A1}}{=}0$) & \texttt{A1\_unconditional\_for\_verified} & proved (under above) \
+\bottomrule
+\end{tabular}
+\end{table}
+
 \textbf{Residual mechanization gap.} The trace data type, the
 divergence predicate $D$, the validity envelope, the four-step
 admissibility check, and the lemmas above have been formalized in

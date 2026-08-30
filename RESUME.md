@@ -1,6 +1,6 @@
 # RESUME — EXTp CST Isabelle Mekanizasyonu (checkpoint)
 
-**Son güncelleme:** 2026-08-28 · **Durum:** çalışır, temiz, konsolide.
+**Son güncelleme:** 2026-08-30 · **Durum:** çalışır, temiz, konsolide.
 Bu dosya, PC restart sonrası **tam olarak kaldığımız yerden** devam etmek için.
 
 ---
@@ -73,9 +73,11 @@ scripti: `scratchpad/check.py` (ref/cite/graphics/env dengesi), `scratchpad/wc.p
 Mekanizasyonda **anlamlı iş büyük ölçüde bitti.** Kalan seçenekler:
 - **g-tam:** `verified_no_fwk_touch`'ı gerçek seL4 ispatından türet → ❌ çok-yıllık, kapsamda değil.
 - **Konsolidasyon:** olduğumuz yerde durup paper'ı cilalamak (önerilen).
-- **Paper yönleri:** bir figürün mekanizasyonu yansıtması; §Related'a formal-methods
-  karşılaştırması (CertiKOS/Komodo/seL4 vs bu mekanizasyon); App A'ya kısa bir
-  "mechanized fragment" tablosu.
+- ✅ §Related formal-methods karşılaştırması eklendi (substrate vs analysis-method,
+  commit b9794b8). Gövde s.13'te bitiyor (Overleaf'te 2026-08-30 doğrulandı) — **pay
+  ~sıfır, gövdeye kelime EKLEME**; yeni içerik yalnızca appendix'e.
+- App A'ya kısa "mechanized fragment" tablosu (appendix, sınırı etkilemez).
+- Bir figürün mekanizasyonu yansıtması.
 
 ---
 
