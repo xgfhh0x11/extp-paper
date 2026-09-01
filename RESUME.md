@@ -1,6 +1,6 @@
 # RESUME — EXTp CST Isabelle Mekanizasyonu (checkpoint)
 
-**Son güncelleme:** 2026-08-30 · **Durum:** çalışır, temiz, konsolide.
+**Son güncelleme:** 2026-09-01 · **Durum:** çalışır, temiz; §8 eklendi (115 fact).
 Bu dosya, PC restart sonrası **tam olarak kaldığımız yerden** devam etmek için.
 
 ---
@@ -8,11 +8,11 @@ Bu dosya, PC restart sonrası **tam olarak kaldığımız yerden** devam etmek i
 ## 30 saniyelik özet
 
 EXTp paper'ının Counterfactual Soundness Theorem'inin (CST) **koşullu çekirdeğini**
-Isabelle/HOL'de mekanize ettik. **94 fact ispatlı, `sorry` YOK**, Isabelle2025-1'de
+Isabelle/HOL'de mekanize ettik. **115 fact ispatlı, `sorry` YOK**, Isabelle2025-1'de
 temiz derleniyor. Paper (`extp.tex`) NDSS 2027 **≤13pp gövde şartını karşılıyor**
 (Overleaf'te doğrulandı: gövde s.13'te bitiyor, Ethics s.14).
 
-- Mekanizasyon: `isabelle/CST_Model.thy` (~1334 satır) + `isabelle/ROOT`
+- Mekanizasyon: `isabelle/CST_Model.thy` (~1756 satır) + `isabelle/ROOT`
 - Detaylı log: `Isabelle_Mechanization_CST.md` (vault notu)
 - Paper: `SUBMISSION_READY_NDSS2027/extp.tex` (yedek: `extp.tex.bak-pre-C`)
 - Overleaf paketi: `EXTp_Overleaf_upload.zip`
@@ -52,6 +52,13 @@ scripti: `scratchpad/check.py` (ref/cite/graphics/env dengesi), `scratchpad/wc.p
 | **(i)** | Silent-leak = kanıtlanmış scope sınırı (in-scope sessiz sızıntı imkânsız) | `silent_leak_only_out_of_scope` |
 | **(g)** | seL4 lifting **arayüzü** — yükümlülük İZOLE, AÇIK KAPATILMADI | `A1_unconditional_for_verified` |
 | **(e)** | Observable → 64/32-bit word (timing nat kaldı) | — |
+| **§8 F2** (2026-09-01) | Composition **W/K_fwk formunda** (paper item ii birebir): `hold`, `pert_bounded`, locale `cst_composition`; katı form δ→0'da geri | `composition_W_holds`, `composition_strict_recovered`, `cst_conditional_W` |
+| **§8 F5** (2026-09-01) | Prop 1 **trace-zincirli**: `Ts!(k+1)` = k. adımın T_cf'i = k+1. adımın baseline'ı | `chain_ok_iff_steps`, `chain_extend`, `chain_conditional`, `chain_envelope_bound` |
+
+**2026-09-01 turu ayrıca:** statement-fidelity denetimi (paper ↔ .thy) yapıldı; `tab:mechanized`'da
+üç bounding lemma → "assumed (A-content)", lem:silent tek yön, composition + Prop 1 satırları yeni
+fact'lere bağlandı; App. A "fourth"→"third admissibility step" ×2 düzeltildi; **`tab:mechanized`
+satır sonları tek `\` idi (LaTeX bozuk!) → `\\` yapıldı.** Overleaf'te yeniden derle ve tabloyu gözle kontrol et.
 
 ---
 
@@ -87,9 +94,9 @@ Mekanizasyonda **anlamlı iş büyük ölçüde bitti.** Kalan seçenekler:
 ```
 extp-paper/
 ├── RESUME.md                          ← BU DOSYA
-├── Isabelle_Mechanization_CST.md      ← tam log (94 fact envanteri, tüm kod)
+├── Isabelle_Mechanization_CST.md      ← tam log (115 fact envanteri, tüm kod)
 ├── isabelle/
-│   ├── CST_Model.thy                  ← ~1334 satır, tüm mekanizasyon
+│   ├── CST_Model.thy                  ← ~1756 satır, tüm mekanizasyon
 │   ├── ROOT                           ← session EXTp_CST (+ sessions HOL-Library)
 │   └── build_log.txt                  ← son build çıktısı
 ├── SUBMISSION_READY_NDSS2027/

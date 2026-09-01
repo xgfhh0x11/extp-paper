@@ -10,9 +10,9 @@ status: kosullu-cekirdek-bcdfghi-e-13pp-ok
 isabelle-version: Isabelle2025-1
 session: EXTp_CST
 build-status: "0 error / 0 warning / 0 sorry"
-proven-facts: 94
+proven-facts: 115
 created: 2026-08-27
-updated: 2026-08-28
+updated: 2026-09-01
 ---
 
 # CST Isabelle Mekanizasyonu — Koşullu Çekirdek
@@ -20,7 +20,7 @@ updated: 2026-08-28
 > [!success] Durum
 > `extp.tex`'in **"semi-formal sketch"** dediği CST'nin **koşullu çekirdeği**
 > artık makine-kontrollü bir Isabelle/HOL teoremi.
-> **94 fact ispatlı, `sorry` YOK**, Isabelle2025-1'de temiz derleniyor.
+> **115 fact ispatlı, `sorry` YOK**, Isabelle2025-1'de temiz derleniyor (§8 eklendi 2026-09-01).
 > seL4 harness'ına ve lifting açığına **hiç dokunulmadı**.
 
 > [!tip] Yeni analitik sonuç (2026-08-28, adım (b))
@@ -933,6 +933,41 @@ lemma accum_delta_linear_bound: "accum_delta n \<le> of_nat n * delta_A1"
 App A: *"δ_A1 accumulates by union bound; tighter bounds under independence are not asserted."*
 → `accum_delta_eq` tam olarak `n · δ_A1` verir: **O(n), bozunma yok**, commutativity **iddia edilmiyor**.
 
+> [!success] 2026-09-01 — §8.3 bu soyutlamayı **gerçek zincirle** değiştirdi
+> `chain_iff_all_atomic` (boolean listesi) yerine `chain_ok E ιs ok Ts`: `Ts!0 = T_orig`,
+> `Ts!(k+1)` = k. adımın T_cf'i **ve** k+1. adımın baseline'ı. `chain_ok_iff_steps` Prop 1'in
+> ifadesi, `chain_extend` App A'nın tümevarım adımı ("T_cf^(n) as the original trace"),
+> `chain_conditional` her adıma Teorem 1. Bkz. §8.006.
+
+### 7.65 Composition aksiyomu — W/K_fwk formunda (§8.1–8.2, 2026-09-01)
+
+Statement-fidelity denetimi: paper item (ii) *"for all W ∈ K_fwk, the outcome under do(x') equals the
+outcome under do(x') while holding W = w_orig, up to a perturbation bounded by Δ* on each W with
+probability ≥ 1 − δ_A1"* — mekanizasyon bunu yalnızca `composition_relaxed ↔ p_conf ≤ δ+α`
+(confounder bound) olarak **modellemişti**. Şimdi birebir:
+
+```isabelle
+definition hold :: "nat set ⇒ valuation ⇒ valuation ⇒ valuation" where
+  "hold W σo σ = (λv. if v ∈ W then σo v else σ v)"
+
+lemma composition_strict_structural:      (* Pearl strict form *)
+  assumes "var ι ∉ W" and "∀w∈W. σc w = σo w"
+  shows "hold W σo (apply_iv ι σc) = apply_iv ι σc"
+
+locale cst_composition = cst_assumptions +
+  fixes fwk_vars :: "nat set" and p_pert :: "envelope ⇒ intervention ⇒ nat ⇒ real"
+  assumes A1_pert_per_var: "A1 E ι ⟹ w ∈ fwk_vars ⟹ 0 ≤ p_pert E ι w ∧ p_pert E ι w ≤ delta_A1"
+      and A1_target_outside_fwk: "A1 E ι ⟹ var ι ∉ fwk_vars"      (* CapSep: K_int ∩ K_fwk = ∅ *)
+
+theorem composition_W_holds: "A1 E ι ⟹ composition_W E ι"
+theorem composition_strict_recovered: "A1 E ι ⟹ delta_A1 = 0 ⟹ w ∈ fwk_vars ⟹ p_pert E ι w = 0"
+theorem cst_conditional_W: ... shows "composition_W E ι ∧ effective ι ∧ composition_relaxed E ι ∧ (∃i w. ...)"
+```
+
+Antecedent disiplini korundu: `p_pert` soyut reel (ölçüm), yalnızca yapısal kısım + aritmetik ispatlı.
+`var ι ∉ K_fwk` ön-koşulu tam olarak CapSep'in yapısal iddiasıdır — katı formun **neden** disjointness
+gerektirdiği makinede görünür oluyor (aksi halde `hold` müdahaleyi geri alır).
+
 ### 7.7 Locale tutarlılığı — "vacuously true" değil
 
 ```isabelle
@@ -954,7 +989,29 @@ interpretation cst_trivial:
 
 ---
 
-## 8. İspatlanan fact envanteri (94 fact, `sorry` yok)
+## 8. İspatlanan fact envanteri (115 fact, `sorry` yok)
+
+### 8.006 §8 (2026-09-01) ile eklenen 21 fact — F2/F5 köşeleri
+
+| Fact | Ne kurar |
+|---|---|
+| `hold_in`, `hold_out` | `hold W σ_orig σ`: W'yi T_orig değerlerine sabitleme operatörü |
+| `composition_strict_structural` | Pearl **katı** composition: W dogal değerindeyse `hold W (do x') = do x'` — ön-koşul `var ι ∉ W` (CapSep) |
+| `hold_preserves_effectiveness` | W tutulurken `do(x')` geri alınmaz |
+| `composition_relaxed_structural` | Gevşek form, yapısal kısım: W dışında özdeş, W içinde ≤ Δ* (pert_bounded altında) |
+| `composition_W_holds` | **App A item (ii) birebir**: A1 ⟹ `composition_W` (locale `cst_composition`) |
+| `composition_W_keeps_effect` | Effectiveness composition altında korunur |
+| `composition_strict_recovered` | δ_A1 = 0 ⟹ her W için p_pert = 0 (katı form geri kazanımı) |
+| `composition_W_union_bound` | Sonlu K_fwk: Σ p_pert ≤ |K_fwk|·δ_A1 |
+| `cst_conditional_W` | Koşullu CST + `composition_W` birlikte |
+| `comp_demo_nonvacuous`, `comp_demo_A1_falsifiable` | `cst_composition` tutarlı ve vacuous değil (K_fwk={0}, A1 = "hedef≠0") |
+| `chain_ok_iff_steps` | **Prop 1'in gerçek ifadesi**: zincir admissible ⟺ her adım *kendi baseline'ıyla* admissible |
+| `chain_extend` | App A tümevarım adımı: zinciri uzatmak = `last Ts`'i baseline alan atomik adım |
+| `chain_conditional` | Zincirin her adımı için Teorem 1 sonucu (`Ts!k`, `Ts!(k+1)` üzerinde) |
+| `chain_delta_step` | A1^(n+1) = A1^(n) + δ_A1 |
+| `chain_envelope_bound` | Zincir tanık zarfı ≤ `sweep_ub` ≤ n·blanket (bağımsızlık varsayılmaz) |
+| `chain_demo_step1/2`, `chain_demo`, `chain_demo_baseline_shift` | Somut 2-adım zincir; ikinci adım T_orig'e değil T1'e karşı ölçülür |
+
 
 ### 8.0 Adım (b) ile eklenen 19 fact
 
@@ -1169,6 +1226,8 @@ seL4'ü bilen bir NDSS reviewer'ı `K_extended`'ın verified olmadığını heme
 | ~~(i)~~ | Silent-leak = kanıtlanmış scope sınırı (A2) | ✅ **Tamam** (2026-08-28) |
 | ~~(g)~~ | seL4 lifting **arayüzü** (açık izole, kapatılmadı) | ✅ **Kısmi** (2026-08-28) — bkz §8.9 |
 | ~~(e)~~ | Observable → 64/32-bit `word` (timing nat kaldı) | ✅ **Tamam** (2026-08-28) |
+| ~~(F2)~~ | Composition W/K_fwk formunda (paper item ii birebir) | ✅ **Tamam** (2026-09-01, §8.1–8.2) |
+| ~~(F5)~~ | Prop 1 trace-zincirli (T_cf^(k) baseline) | ✅ **Tamam** (2026-09-01, §8.3) |
 | (g-tam) | `verified_no_fwk_touch`'ı L4.verified'den türet | ❌ Çok-yıllık; kapsamda değil |
 
 > [!check] Sayfa limiti doğrulandı (2026-08-28)
@@ -1197,7 +1256,7 @@ seL4'ü bilen bir NDSS reviewer'ı `K_extended`'ın verified olmadığını heme
 ```
 extp-paper/
 ├── isabelle/
-│   ├── CST_Model.thy      ← 1334 satır, tüm mekanizasyon
+│   ├── CST_Model.thy      ← 1756 satır, tüm mekanizasyon
 │   ├── ROOT               ← session EXTp_CST
 │   └── build_log.txt      ← son build çıktısı
 └── Isabelle_Mechanization_CST.md   ← bu not

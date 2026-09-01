@@ -25,6 +25,10 @@
       girer; Clopper-Pearson Isabelle'de ISPATLANMAZ (olcumdur) -- sadece
       union-bound aritmetigi ispatlanir.
     - Geriye kalan tek acik = FAZ 3 (lifting), §7'de bilincli stub.
+    - 2026-09-01 (§8): statement-fidelity denetiminin iki "prose" kosesi kapatildi:
+      composition W/K_fwk formunda (hold, pert_bounded, locale cst_composition,
+      cst_conditional_W) + Prop 1 trace-zincirli (chain_ok, chain_extend,
+      chain_conditional). Toplam 115 fact, sorry YOK.
 *)
 
 theory CST_Model
@@ -1330,5 +1334,427 @@ text \<open>
   bu bolumun HICBIRINE ihtiyac duymaz; bu bolum yalnizca A1'in bir alt-kumesini
   ampirik olmaktan cikarmanin fiyat etiketini tipli olarak sergiler.
 \<close>
+
+section \<open>8. Iki "prose" kosesinin kapatilmasi: W-formunda composition + trace-zincirli Prop 1\<close>
+
+text \<open>
+  Statement-fidelity denetimi (2026-09-01) kagit ispatinda iki noktayi "prose" birakmisti:
+    (F2) App A item (ii): Pearl composition'in delta_A1-relaxed hali paper'da K_fwk
+         uzerindeki W degiskenleri ve |W_cf - W_orig| perturbasyonu ile ifade ediliyor;
+         mekanizasyon bunu yalnizca confounder bound (composition_relaxed) olarak
+         MODELLEMISTI.
+    (F5) Prop 1 sirali kompozisyon: paper'da T_cf^(k) bir sonraki adimin BASELINE'i;
+         mekanizasyon yalnizca n*delta_A1 aritmetigini tasiyordu.
+  Bu bolum ikisini de paper'daki ifadeye birebir karsilik gelecek sekilde kapatir.
+  Antecedent disiplini korunur: olasiliklar (p_pert) soyut reel parametre olarak girer.
+\<close>
+
+subsection \<open>8.1 Holding W: yapisal kisim (locale disi)\<close>
+
+text \<open>
+  hold W \<sigma>o \<sigma>: valuation \<sigma>'da W kumesindeki degiskenleri T_orig'deki degerlerine
+  (\<sigma>o) sabitler -- Pearl/HP'nin "W = w_orig tutulurken" islemi.
+\<close>
+
+definition hold :: "nat set \<Rightarrow> valuation \<Rightarrow> valuation \<Rightarrow> valuation" where
+  "hold W \<sigma>o \<sigma> = (\<lambda>v. if v \<in> W then \<sigma>o v else \<sigma> v)"
+
+text \<open>Her W-degiskeninde |W_cf - W_orig| \<le> Dstar (App A: "perturbation bounded by Dstar on each W").\<close>
+
+definition pert_bounded :: "nat \<Rightarrow> nat set \<Rightarrow> valuation \<Rightarrow> valuation \<Rightarrow> bool" where
+  "pert_bounded Dstar W \<sigma>o \<sigma>c \<longleftrightarrow> (\<forall>w\<in>W. \<bar>int (\<sigma>c w) - int (\<sigma>o w)\<bar> \<le> int Dstar)"
+
+lemma hold_in:  "v \<in> W \<Longrightarrow> hold W \<sigma>o \<sigma> v = \<sigma>o v" by (simp add: hold_def)
+lemma hold_out: "v \<notin> W \<Longrightarrow> hold W \<sigma>o \<sigma> v = \<sigma> v" by (simp add: hold_def)
+
+text \<open>
+  Pearl composition, KATI form: W zaten dogal degerinde ise (W_x = w), W'yi tutmak
+  sonucu degistirmez -- do(x') tek basina ile do(x') + hold W AYNI valuation'i verir.
+  Tek yapisal on-kosul: mudahale degiskeni W'nin DISINDA (CapSep: K_int \<inter> K_fwk = {}).
+  Aksi halde hold mudahaleyi geri alirdi.
+\<close>
+
+lemma composition_strict_structural:
+  assumes "var \<iota> \<notin> W" and "\<forall>w\<in>W. \<sigma>c w = \<sigma>o w"
+  shows "hold W \<sigma>o (apply_iv \<iota> \<sigma>c) = apply_iv \<iota> \<sigma>c"
+proof
+  fix v
+  show "hold W \<sigma>o (apply_iv \<iota> \<sigma>c) v = apply_iv \<iota> \<sigma>c v"
+  proof (cases "v \<in> W")
+    case True
+    with assms(1) have "v \<noteq> var \<iota>" by auto
+    with True assms(2) show ?thesis by (simp add: hold_def apply_iv_def)
+  next
+    case False then show ?thesis by (simp add: hold_def)
+  qed
+qed
+
+text \<open>Effectiveness W tutulurken de korunur: hold, do(x')'i geri almaz.\<close>
+
+lemma hold_preserves_effectiveness:
+  assumes "var \<iota> \<notin> W"
+  shows "hold W \<sigma>o (apply_iv \<iota> \<sigma>c) (var \<iota>) = newval \<iota>"
+  using assms by (simp add: hold_def apply_iv_def)
+
+text \<open>
+  delta_A1-RELAXED form, yapisal kisim: W tam dogal degerinde OLMASA bile, W tutulan ve
+  tutulmayan iki do(x') sonucu (a) W disinda (X dahil) ozdes, (b) W icinde her
+  koordinatta en fazla Dstar farkli -- pert_bounded altinda.
+\<close>
+
+lemma composition_relaxed_structural:
+  assumes "var \<iota> \<notin> W" and "pert_bounded Dstar W \<sigma>o \<sigma>c"
+  shows "(\<forall>v. v \<notin> W \<longrightarrow> hold W \<sigma>o (apply_iv \<iota> \<sigma>c) v = apply_iv \<iota> \<sigma>c v)
+       \<and> (\<forall>w\<in>W. \<bar>int (hold W \<sigma>o (apply_iv \<iota> \<sigma>c) w) - int (apply_iv \<iota> \<sigma>c w)\<bar> \<le> int Dstar)"
+proof (intro conjI allI ballI impI)
+  fix v assume "v \<notin> W"
+  then show "hold W \<sigma>o (apply_iv \<iota> \<sigma>c) v = apply_iv \<iota> \<sigma>c v" by (simp add: hold_def)
+next
+  fix w assume w: "w \<in> W"
+  with assms(1) have "w \<noteq> var \<iota>" by auto
+  then have "apply_iv \<iota> \<sigma>c w = \<sigma>c w" by (simp add: apply_iv_def)
+  moreover from w have "hold W \<sigma>o (apply_iv \<iota> \<sigma>c) w = \<sigma>o w" by (simp add: hold_def)
+  moreover from assms(2) w have "\<bar>int (\<sigma>c w) - int (\<sigma>o w)\<bar> \<le> int Dstar"
+    by (simp add: pert_bounded_def)
+  ultimately show "\<bar>int (hold W \<sigma>o (apply_iv \<iota> \<sigma>c) w) - int (apply_iv \<iota> \<sigma>c w)\<bar> \<le> int Dstar"
+    by (simp add: abs_minus_commute)
+qed
+
+
+subsection \<open>8.2 Olasiliksal kisim: locale cst_composition (A1'in sembolik icerigi)\<close>
+
+text \<open>
+  App A, A1'in sembolik hali: her W \<in> K_fwk icin Pr[|W_cf - W_orig| > Dstar] \<le> delta_A1.
+  p_pert E \<iota> w bu olasiligin soyut reel parametresi (olculur, ispatlanmaz -- antecedent
+  disiplini). Ikinci assumption CapSep'in yapisal iddiasi K_int \<inter> K_fwk = {}'nin
+  mudahale-degiskeni duzeyindeki hali: A1 altinda hedef X, K_fwk'nin disindadir.
+\<close>
+
+locale cst_composition = cst_assumptions +
+  fixes fwk_vars :: "nat set"
+    and p_pert   :: "envelope \<Rightarrow> intervention \<Rightarrow> nat \<Rightarrow> real"
+  assumes A1_pert_per_var:
+    "\<And>E \<iota> w. A1 E \<iota> \<Longrightarrow> w \<in> fwk_vars \<Longrightarrow> 0 \<le> p_pert E \<iota> w \<and> p_pert E \<iota> w \<le> delta_A1"
+      and A1_target_outside_fwk:
+    "\<And>E \<iota>. A1 E \<iota> \<Longrightarrow> var \<iota> \<notin> fwk_vars"
+begin
+
+text \<open>
+  App A item (ii), paper'daki ifadeyle birebir: "for all W in K_fwk, the outcome under
+  do(x') equals the outcome under do(x') while holding W = w_orig, up to a perturbation
+  bounded by Dstar on each W with probability at least 1 - delta_A1".
+\<close>
+
+definition composition_W :: "envelope \<Rightarrow> intervention \<Rightarrow> bool" where
+  "composition_W E \<iota> \<longleftrightarrow>
+     var \<iota> \<notin> fwk_vars
+   \<and> (\<forall>w\<in>fwk_vars. p_pert E \<iota> w \<le> delta_A1)
+   \<and> (\<forall>\<sigma>o \<sigma>c. pert_bounded Dstar fwk_vars \<sigma>o \<sigma>c \<longrightarrow>
+        (\<forall>v. v \<notin> fwk_vars \<longrightarrow> hold fwk_vars \<sigma>o (apply_iv \<iota> \<sigma>c) v = apply_iv \<iota> \<sigma>c v)
+      \<and> (\<forall>w\<in>fwk_vars. \<bar>int (hold fwk_vars \<sigma>o (apply_iv \<iota> \<sigma>c) w) - int (apply_iv \<iota> \<sigma>c w)\<bar>
+                         \<le> int Dstar))"
+
+theorem composition_W_holds:
+  assumes "A1 E \<iota>" shows "composition_W E \<iota>"
+proof -
+  have out: "var \<iota> \<notin> fwk_vars" by (rule A1_target_outside_fwk[OF assms])
+  have pr: "\<forall>w\<in>fwk_vars. p_pert E \<iota> w \<le> delta_A1"
+    using A1_pert_per_var[OF assms] by blast
+  show ?thesis
+    unfolding composition_W_def
+    using out pr composition_relaxed_structural[OF out] by blast
+qed
+
+text \<open>W tutulurken do(x') etkisi korunur (effectiveness composition altinda kaybolmaz).\<close>
+
+corollary composition_W_keeps_effect:
+  assumes "A1 E \<iota>"
+  shows "hold fwk_vars \<sigma>o (apply_iv \<iota> \<sigma>c) (var \<iota>) = newval \<iota>"
+  by (rule hold_preserves_effectiveness[OF A1_target_outside_fwk[OF assms]])
+
+text \<open>Kati form geri kazanilir: delta_A1 \<rightarrow> 0 limitinde perturbasyon olasiligi 0 (App A "Recovery of strict form").\<close>
+
+theorem composition_strict_recovered:
+  assumes "A1 E \<iota>" and "delta_A1 = 0" and "w \<in> fwk_vars"
+  shows "p_pert E \<iota> w = 0"
+  using A1_pert_per_var[OF assms(1) assms(3)] assms(2) by linarith
+
+text \<open>Sonlu K_fwk uzerinde union bound: toplam perturbasyon kutlesi \<le> |K_fwk| * delta_A1.\<close>
+
+theorem composition_W_union_bound:
+  assumes "A1 E \<iota>" and "finite fwk_vars"
+  shows "(\<Sum>w\<in>fwk_vars. p_pert E \<iota> w) \<le> of_nat (card fwk_vars) * delta_A1"
+proof -
+  have "(\<Sum>w\<in>fwk_vars. p_pert E \<iota> w) \<le> (\<Sum>w\<in>fwk_vars. delta_A1)"
+    by (rule sum_mono) (use A1_pert_per_var[OF assms(1)] in blast)
+  also have "\<dots> = of_nat (card fwk_vars) * delta_A1" by simp
+  finally show ?thesis .
+qed
+
+text \<open>
+  Kosullu CST teoremi, composition'in W-formuyla: eski confounder-bound modeli
+  (composition_relaxed) KALIR, W-formu ona EKLENIR -- teorem ikisini birden verir.
+\<close>
+
+theorem cst_conditional_W:
+  assumes A1h: "A1 E \<iota>" and A2h: "A2 E \<iota>" and A3h: "A3 E \<iota>" and A4h: "A4 E \<iota>"
+      and align: "aligned To Tc"
+      and adm: "admissible Dstar E \<iota> assum_ok To Tc"
+  shows "composition_W E \<iota>
+       \<and> effective \<iota>
+       \<and> composition_relaxed E \<iota>
+       \<and> (\<exists>i w. i < length Tc \<and> i < length To
+            \<and> D Dstar To Tc i
+            \<and> ac1 To Tc i
+            \<and> ac2a To Tc i
+            \<and> ac2a_wit w To Tc i
+            \<and> ac2b E \<iota>
+            \<and> wit_bound w E \<iota> \<le> max (eps_SOE + delta_A1 + alpha)
+                                     (delta_A1 + 2 * alpha))"
+  using composition_W_holds[OF A1h] cst_conditional[OF A1h A2h A3h A4h align adm] by blast
+
+end  \<comment> \<open>locale cst_composition\<close>
+
+text \<open>
+  Tutarlilik + vacuous olmadiginin kaniti: K_fwk = {0}, A1 = "hedef 0 degil".
+  A1 hem saglanabilir (var = 7) hem ihlal edilebilir (var = 0); K_fwk bos degil.
+\<close>
+
+interpretation cst_comp_demo:
+  cst_composition
+    9077
+    "37/10000" "37/10000" "61/10000"
+    "\<lambda>E \<iota>. var \<iota> \<noteq> 0" "\<lambda>E \<iota>. True" "\<lambda>E \<iota>. True" "\<lambda>E \<iota>. True"
+    "\<lambda>E \<iota>. 0" "\<lambda>E \<iota>. 0" "\<lambda>E \<iota>. 0"
+    "\<lambda>E. {}"
+    "\<lambda>E \<iota> To Tc i. soe_clause To Tc i"
+    "{0}"                                   \<comment> \<open>fwk_vars\<close>
+    "\<lambda>E \<iota> w. 0"                           \<comment> \<open>p_pert\<close>
+  by unfold_locales (auto simp: D_def)
+
+lemma comp_demo_nonvacuous:
+  "cst_comp_demo.composition_W E \<lparr> var = 7, newval = 42, at_event = 0, icls = RegWrite \<rparr>"
+  by (rule cst_comp_demo.composition_W_holds) simp
+
+lemma comp_demo_A1_falsifiable:
+  "\<not> (\<lambda>E \<iota>. var \<iota> \<noteq> 0) E \<lparr> var = 0, newval = 42, at_event = 0, icls = RegWrite \<rparr>"
+  by simp
+
+
+subsection \<open>8.3 Prop 1, trace-zincirli: T_cf^(k) bir sonraki adimin baseline'i\<close>
+
+context cst_assumptions
+begin
+
+text \<open>
+  Zincir = mudahale listesi + (n+1) trace: Ts!0 = T_orig, Ts!(k+1) = k'inci adimin
+  T_cf'i; adim k+1 Ts!(k+1)'i BASELINE alir (App A tumevarim adimi). Bu,
+  chain_iff_all_atomic'teki boolean-listesi soyutlamasinin yerini alan GERCEK zincir.
+  Siralama iddianin PARCASIDIR: rev \<iota>s icin ayni Ts anlamli degildir (baska bir
+  yurutme, baska trace'ler) -- komutatiflik iddia edilmez (App A).
+\<close>
+
+fun chain_ok :: "envelope \<Rightarrow> intervention list \<Rightarrow> bool \<Rightarrow> trace list \<Rightarrow> bool" where
+  "chain_ok E [] ok Ts = (length Ts = 1)"
+| "chain_ok E (\<iota> # \<iota>s) ok (To # Tc # Ts) =
+     (admissible Dstar E \<iota> ok To Tc \<and> chain_ok E \<iota>s ok (Tc # Ts))"
+| "chain_ok E (\<iota> # \<iota>s) ok Ts = False"
+
+text \<open>Prop 1'in GERCEK ifadesi: zincir admissible \<longleftrightarrow> her atomik adim, KENDI baseline'iyla, admissible.\<close>
+
+theorem chain_ok_iff_steps:
+  "chain_ok E \<iota>s ok Ts \<longleftrightarrow>
+     length Ts = Suc (length \<iota>s)
+   \<and> (\<forall>k < length \<iota>s. admissible Dstar E (\<iota>s ! k) ok (Ts ! k) (Ts ! Suc k))"
+proof (induct \<iota>s arbitrary: Ts)
+  case Nil
+  then show ?case by (cases Ts) auto
+next
+  case (Cons \<iota> \<iota>s)
+  note IH = Cons.hyps
+  show ?case
+  proof (cases Ts)
+    case Nil then show ?thesis by simp
+  next
+    case (Cons To Ts')
+    show ?thesis
+    proof (cases Ts')
+      case Nil with \<open>Ts = To # Ts'\<close> show ?thesis by simp
+    next
+      case (Cons Tc Ts'')
+      have "chain_ok E (\<iota> # \<iota>s) ok (To # Tc # Ts'')
+            \<longleftrightarrow> admissible Dstar E \<iota> ok To Tc \<and> chain_ok E \<iota>s ok (Tc # Ts'')" by simp
+      also have "\<dots> \<longleftrightarrow> admissible Dstar E \<iota> ok To Tc
+                     \<and> length (Tc # Ts'') = Suc (length \<iota>s)
+                     \<and> (\<forall>k < length \<iota>s. admissible Dstar E (\<iota>s ! k) ok
+                            ((Tc # Ts'') ! k) ((Tc # Ts'') ! Suc k))"
+        using IH by simp
+      also have "\<dots> \<longleftrightarrow> length (To # Tc # Ts'') = Suc (length (\<iota> # \<iota>s))
+                     \<and> (\<forall>k < length (\<iota> # \<iota>s). admissible Dstar E ((\<iota> # \<iota>s) ! k) ok
+                            ((To # Tc # Ts'') ! k) ((To # Tc # Ts'') ! Suc k))"
+        by (auto simp: less_Suc_eq_0_disj)
+      finally show ?thesis using \<open>Ts = To # Ts'\<close> \<open>Ts' = Tc # Ts''\<close> by simp
+    qed
+  qed
+qed
+
+text \<open>
+  App A tumevarim adimi, birebir: zinciri bir adim uzatmak = SON T_cf'i baseline alan
+  bir atomik adim eklemek. "Applying Theorem 1 to the atomic step with T_cf^(n) as the
+  original trace yields admissibility for the extended chain."
+\<close>
+
+theorem chain_extend:
+  assumes "chain_ok E \<iota>s ok Ts"
+  shows "chain_ok E (\<iota>s @ [\<iota>]) ok (Ts @ [T]) \<longleftrightarrow> admissible Dstar E \<iota> ok (last Ts) T"
+proof -
+  let ?S = "\<lambda>k. admissible Dstar E ((\<iota>s @ [\<iota>]) ! k) ok ((Ts @ [T]) ! k) ((Ts @ [T]) ! Suc k)"
+  from assms have len: "length Ts = Suc (length \<iota>s)"
+    and steps: "\<forall>k < length \<iota>s. admissible Dstar E (\<iota>s ! k) ok (Ts ! k) (Ts ! Suc k)"
+    by (simp_all add: chain_ok_iff_steps)
+  have ne: "Ts \<noteq> []" using len by auto
+  have lastTs: "last Ts = Ts ! length \<iota>s"
+    using last_conv_nth[OF ne] len by simp
+  have old: "\<And>k. k < length \<iota>s \<Longrightarrow>
+      ?S k = admissible Dstar E (\<iota>s ! k) ok (Ts ! k) (Ts ! Suc k)"
+    using len by (simp add: nth_append)
+  have new: "?S (length \<iota>s) = admissible Dstar E \<iota> ok (last Ts) T"
+    using len lastTs by (simp add: nth_append)
+  have split: "(\<forall>k < Suc (length \<iota>s). ?S k) \<longleftrightarrow> admissible Dstar E \<iota> ok (last Ts) T"
+  proof
+    assume a1: "\<forall>k < Suc (length \<iota>s). ?S k"
+    have "?S (length \<iota>s)" using a1[rule_format, of "length \<iota>s"] by simp
+    then show "admissible Dstar E \<iota> ok (last Ts) T" by (rule new[THEN iffD1])
+  next
+    assume a: "admissible Dstar E \<iota> ok (last Ts) T"
+    show "\<forall>k < Suc (length \<iota>s). ?S k"
+    proof (intro allI impI)
+      fix k assume "k < Suc (length \<iota>s)"
+      then consider "k < length \<iota>s" | "k = length \<iota>s" by (auto simp: less_Suc_eq)
+      then show "?S k"
+      proof cases
+        case 1
+        have "admissible Dstar E (\<iota>s ! k) ok (Ts ! k) (Ts ! Suc k)" using steps 1 by blast
+        then show ?thesis by (rule old[OF 1, THEN iffD2])
+      next
+        case 2
+        have "?S (length \<iota>s)" by (rule new[THEN iffD2, OF a])
+        with 2 show ?thesis by simp
+      qed
+    qed
+  qed
+  have lens: "length (Ts @ [T]) = Suc (length (\<iota>s @ [\<iota>]))" using len by simp
+  have goal_eq: "chain_ok E (\<iota>s @ [\<iota>]) ok (Ts @ [T]) \<longleftrightarrow>
+       (length (Ts @ [T]) = Suc (length (\<iota>s @ [\<iota>])) \<and> (\<forall>k < Suc (length \<iota>s). ?S k))"
+    unfolding chain_ok_iff_steps by simp
+  show ?thesis unfolding goal_eq using lens split by blast
+qed
+
+text \<open>Zincirin HER adimi icin kosullu CST sonucu (Teorem 1 adim adim, kendi baseline'inda).\<close>
+
+theorem chain_conditional:
+  assumes hyps: "\<And>\<iota>. \<iota> \<in> set \<iota>s \<Longrightarrow> A1 E \<iota> \<and> A2 E \<iota> \<and> A3 E \<iota> \<and> A4 E \<iota>"
+      and align: "\<And>k. k < length \<iota>s \<Longrightarrow> aligned (Ts ! k) (Ts ! Suc k)"
+      and chain: "chain_ok E \<iota>s ok Ts"
+      and k: "k < length \<iota>s"
+  shows "effective (\<iota>s ! k)
+       \<and> composition_relaxed E (\<iota>s ! k)
+       \<and> (\<exists>i w. i < length (Ts ! Suc k) \<and> i < length (Ts ! k)
+            \<and> D Dstar (Ts ! k) (Ts ! Suc k) i
+            \<and> ac1 (Ts ! k) (Ts ! Suc k) i
+            \<and> ac2a (Ts ! k) (Ts ! Suc k) i
+            \<and> ac2a_wit w (Ts ! k) (Ts ! Suc k) i
+            \<and> ac2b E (\<iota>s ! k)
+            \<and> wit_bound w E (\<iota>s ! k) \<le> max (eps_SOE + delta_A1 + alpha)
+                                          (delta_A1 + 2 * alpha))"
+proof -
+  from chain k have adm: "admissible Dstar E (\<iota>s ! k) ok (Ts ! k) (Ts ! Suc k)"
+    by (simp add: chain_ok_iff_steps)
+  from hyps[OF nth_mem[OF k]]
+  have A: "A1 E (\<iota>s ! k)" "A2 E (\<iota>s ! k)" "A3 E (\<iota>s ! k)" "A4 E (\<iota>s ! k)" by auto
+  show ?thesis by (rule cst_conditional[OF A align[OF k] adm])
+qed
+
+text \<open>
+  A1^(n+1) \<le> A1^(n) + delta_A1 (App A): zincir bir adim uzadiginda birikmis A1 zarfi
+  tam olarak delta_A1 artar; toplam n * delta_A1 (accum_delta_eq).
+\<close>
+
+lemma chain_delta_step:
+  "accum_delta (length (\<iota>s @ [\<iota>])) = accum_delta (length \<iota>s) + delta_A1"
+  by simp
+
+text \<open>
+  Zincirin tanik zarflari: adimlar BAGIMLI olsa da union bound gecerlidir (bagimsizlik
+  varsayilmaz -- App A "tighter bounds under independence are not asserted").
+  Toplam \<le> tanik-duyarli sweep_ub \<le> n * blanket.
+\<close>
+
+definition chain_actual :: "envelope \<Rightarrow> intervention list \<Rightarrow> ac2a_witness list \<Rightarrow> real" where
+  "chain_actual E \<iota>s ws = sum_list (map2 (\<lambda>\<iota> w. wit_bound w E \<iota>) \<iota>s ws)"
+
+theorem chain_envelope_bound:
+  assumes hyps: "\<And>\<iota>. \<iota> \<in> set \<iota>s \<Longrightarrow> A1 E \<iota> \<and> A3 E \<iota> \<and> A4 E \<iota>"
+      and len: "length ws = length \<iota>s"
+  shows "chain_actual E \<iota>s ws \<le> sweep_ub ws
+       \<and> sweep_ub ws \<le> of_nat (length \<iota>s) * blanket"
+proof -
+  have "chain_actual E \<iota>s ws \<le> sweep_ub ws"
+    using len[symmetric] hyps unfolding chain_actual_def sweep_ub_def
+  proof (induct \<iota>s ws rule: list_induct2)
+    case Nil show ?case by simp
+  next
+    case (Cons \<iota> \<iota>s w ws)
+    have h: "A1 E \<iota>" "A3 E \<iota>" "A4 E \<iota>" using Cons.prems by auto
+    have ih: "sum_list (map2 (\<lambda>\<iota> w. wit_bound w E \<iota>) \<iota>s ws) \<le> sum_list (map wit_ub ws)"
+      by (rule Cons.hyps) (use Cons.prems in auto)
+    have "wit_bound w E \<iota> \<le> wit_ub w" by (rule wit_bound_le_ub[OF h])
+    with ih show ?case by simp
+  qed
+  moreover have "sweep_ub ws \<le> of_nat (length \<iota>s) * blanket"
+    using sweep_ub_tighter[of ws] len by simp
+  ultimately show ?thesis by blast
+qed
+
+end  \<comment> \<open>context cst_assumptions\<close>
+
+text \<open>
+  Somut 2-adimli zincir (within-boot rejimi): T0 = ex_orig, T1 rax'i degistirir,
+  T2 T1'in rax'ini bir daha degistirir; ikinci adimin baseline'i T1'dir.
+\<close>
+
+definition ch_T1 :: trace where
+  "ch_T1 = [ ev 10 1 0 5 1000, ev 14 2 0 6 1050 ]"
+
+definition ch_T2 :: trace where
+  "ch_T2 = [ ev 10 1 0 5 1000, ev 14 2 0 7 1050 ]"
+
+definition ch_E :: envelope where
+  "ch_E = \<lparr> instr = 1, wl_class = 1, gw_type = 1, scp = PerEvent, s_in = {7}, s_out = {} \<rparr>"
+
+definition ch_iv1 :: intervention where
+  "ch_iv1 = \<lparr> var = 7, newval = 42, at_event = 1, icls = RegWrite \<rparr>"
+
+definition ch_iv2 :: intervention where
+  "ch_iv2 = \<lparr> var = 7, newval = 43, at_event = 1, icls = RegWrite \<rparr>"
+
+lemma chain_demo_step1: "admissible 9077 ch_E ch_iv1 True ex_orig ch_T1"
+  unfolding admissible_def cst_v1_covered_def ch_E_def ch_iv1_def
+  by (simp, eval)
+
+lemma chain_demo_step2: "admissible 9077 ch_E ch_iv2 True ch_T1 ch_T2"
+  unfolding admissible_def cst_v1_covered_def ch_E_def ch_iv2_def
+  by (simp, eval)
+
+lemma chain_demo:
+  "cst_withinboot.chain_ok ch_E [ch_iv1, ch_iv2] True [ex_orig, ch_T1, ch_T2]"
+  by (simp add: cst_withinboot.chain_ok.simps chain_demo_step1 chain_demo_step2)
+
+text \<open>Baseline kaymasi somut: ikinci adim T_orig'e degil T1'e karsi olculur.\<close>
+
+lemma chain_demo_baseline_shift:
+  "cst_withinboot.chain_ok ch_E [ch_iv1, ch_iv2] True [ex_orig, ch_T1, ch_T2]
+   \<longleftrightarrow> admissible 9077 ch_E ch_iv1 True ex_orig ch_T1 \<and> admissible 9077 ch_E ch_iv2 True ch_T1 ch_T2"
+  by (simp add: cst_withinboot.chain_ok.simps)
 
 end

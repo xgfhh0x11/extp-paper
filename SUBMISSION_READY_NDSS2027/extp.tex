@@ -1582,11 +1582,21 @@ the validity envelope, the intervention model with $\dox{x'}$ given
 state-update semantics, and the four-step admissibility check
 (\S\ref{sec:intervention}). With $A_1$--$A_4$ as hypotheses it then
 proves the $\Rightarrow$ direction of Theorem~\ref{thm:cst} in
-full: Pearl effectiveness, the three bounding lemmas, the
-Halpern-Pearl AC2(b) witness construction with its union bound, the
-per-witness envelope refinement and its regime criterion,
-Lemma~\ref{lem:silent} in both directions, and Proposition~1's
-sequential and parallel-ensemble composition. The development
+full: Pearl effectiveness, the propagation of the three bounding
+lemmas through the union bounds (their content enters as the
+operational meaning of $A_1$, $A_3$, $A_4$ in the locale, not as
+derived facts), the $\delta_{\text{A1}}$-relaxed composition axiom
+in its $W$/$\Kfwk$ form (holding $W$ at its $\Korig$ values leaves
+the outcome of $\dox{x'}$ unchanged outside $W$ and perturbed by at
+most $\Dstar$ per variable, with the strict form recovered at
+$\delta_{\text{A1}}{=}0$), the Halpern-Pearl AC2(b) witness
+construction with its union bound, the per-witness envelope
+refinement and its regime criterion, Lemma~\ref{lem:silent} in its
+completeness direction (effect implies divergence and emission; the
+converse is definitional), and Proposition~1's sequential
+composition with explicit trace threading (each step's baseline is
+the previous step's $\Tcf$) together with its parallel-ensemble
+form. The development
 closes under Isabelle's kernel with no unproved obligations, and
 its assumptions are shown consistent by a model, so the theorems
 are not vacuous; the $\Leftarrow$ direction is, as in
@@ -2254,7 +2264,11 @@ Two observations on this relaxation:
     $\delta_{\text{A1}} \to 0$, the relaxed form reduces to
     Pearl's strict composition. The Q4 modularity experiment
     (\S\ref{sec:discussion}) targets this limit by validating
-    strict side-effect freedom on $\Kfwk$ observables.
+    strict side-effect freedom on $\Kfwk$ observables. Both the
+    relaxed form (holding $W \subseteq \Kfwk$ at its $\Korig$
+    values, per-variable perturbation $\leq \Dstar$, per-variable
+    violation mass $\leq \delta_{\text{A1}}$) and its strict-form
+    recovery are machine-checked (\S\ref{sec:discussion-isabelle}).
   \item \emph{Asymmetry vs.\ faithfulness.} Where CST satisfies a
     \emph{stronger} form of faithfulness (subsumed by SOE's
     trajectory determinism, \S\ref{sec:cst}), it satisfies a
@@ -2270,7 +2284,7 @@ Two observations on this relaxation:
 \end{itemize}
 
 (iii) \emph{HP AC1.} $D$ occurs in $\Tcf$ at event $i$ by the
-fourth admissibility step ($D = \text{true}$); AC1's ``actual
+third admissibility step ($D = \text{true}$); AC1's ``actual
 world'' is $\Tcf$ in CST's reframing (Theorem~\ref{thm:cst}
 footnote).
 
@@ -2287,7 +2301,7 @@ timing-clause version
 ($|\Delta_i^{\text{cf}} - \Delta_i^{\text{orig}}| > \Dstar$) each
 independently witness AC2(a); independence here is not merely
 stipulated --- neither clause entails the other, as witnessed by
-traces on which exactly one fires. The fourth admissibility step
+traces on which exactly one fires. The third admissibility step
 ($D = \text{true}$) is therefore exactly the operational test of
 AC2(a).
 
@@ -2486,7 +2500,10 @@ $X_1 \to X_2 \to \cdots \to X_{n+1}$ is part of the claim's
 specification. Reordering to a permutation $X_{\pi(1)} \to \cdots
 \to X_{\pi(n+1)}$ produces a distinct claim that must be verified
 separately. The induction therefore proves admissibility under
-the specified ordering only.
+the specified ordering only. The chain, its one-step extension
+with $\Tcf^{(n)}$ as the new baseline, and the per-step application
+of Theorem~\ref{thm:cst} are machine-checked
+(\S\ref{sec:discussion-isabelle}).
 \end{proof}
 
 \textbf{Scope clarification: sequential vs.\ parallel ensembles.}
@@ -2533,10 +2550,13 @@ notation and antecedent system. Three explicit limitations apply.
 
 \textbf{Mechanized fragment.} Table~\ref{tab:mechanized} maps the
 components of the argument above to the corresponding facts in the
-Isabelle/HOL development (94 facts, no unproved obligations,
+Isabelle/HOL development (115 facts, no unproved obligations,
 Isabelle2025-1). Rows marked \emph{assumed} are hypotheses of the
 \texttt{cst\_assumptions} or \texttt{sel4\_lifting} locale, not
-theorems; rows marked \emph{model} are consistency witnesses
+theorems --- in particular the three bounding lemmas are stated in
+Isabelle as the operational content of $A_1$, $A_3$, $A_4$ (the
+locale carries them as axioms and the development propagates them),
+not derived from a calibration model; rows marked \emph{model} are consistency witnesses
 showing the locales are non-vacuous.
 
 \begin{table*}[t]
@@ -2547,27 +2567,28 @@ and the Isabelle/HOL development.}
 \label{tab:mechanized}
 \begin{tabular}{@{}lll@{}}
 \toprule
-Paper component & Isabelle fact & Status \
+Paper component & Isabelle fact & Status \\
 \midrule
-$A_1$--$A_4$ (Table~\ref{tab:assumptions}) & locale \texttt{cst\_assumptions} & assumed \
-Effectiveness of $\dox{x'}$ & \texttt{apply\_iv\_severs}, \texttt{effective\_holds} & proved \
-$\Leftarrow$ direction (emission) & \texttt{left\_direction} & proved \
-Lemma~\ref{lem:coincidence-soe} & \texttt{coincidence\_soe\_bound} & proved \
-Lemma~\ref{lem:coincidence-timing} & \texttt{coincidence\_timing\_bound} & proved \
-Lemma~\ref{lem:confounder} & \texttt{confounder\_bound} & proved \
-Lemma~\ref{lem:silent} ($\Rightarrow$, $\Leftarrow$) & \texttt{silent\_no\_missed\_effect}, \texttt{silent\_emission\_complete} & proved \
-HP AC2(a), two witnesses & \texttt{ac2a\_iff\_wit}, \texttt{witnesses\_logically\_independent} & proved \
-HP AC2(b) + union bound & \texttt{ac2b\_holds}, \texttt{w2\_residual\_bound} & proved \
-Per-witness envelope, regime criterion & \texttt{structural\_bound\_tighter\_iff} & proved \
-Theorem~\ref{thm:cst} ($\Rightarrow$) & \texttt{cst\_conditional} & proved \
-Scope-completeness (A2) & \texttt{cst\_scope\_complete}, \texttt{silent\_leak\_only\_out\_of\_scope} & proved \
-Proposition~1, sequential & \texttt{chain\_iff\_all\_atomic}, \texttt{accum\_delta\_linear\_bound} & proved \
-Proposition~1, parallel ensemble & \texttt{sweep\_three\_level\_bound} & proved \
-Sweep instantiation (\S\ref{sec:eval-demo}) & \texttt{dead\_sweep\_envelope\_vs\_naive\_swept} & proved \
-Within-/cross-boot calibration & \texttt{cst\_withinboot}, \texttt{cst\_crossboot} & model \
-$\Kverified/\Kextended$ partition & \texttt{k\_partition\_disjoint}, \texttt{k\_partition\_complete} & proved \
-seL4 external atomicity & \texttt{verified\_no\_fwk\_touch} & assumed \
-$A_1$ for $\Kverified$ ($\delta_{\text{A1}}{=}0$) & \texttt{A1\_unconditional\_for\_verified} & proved (under above) \
+$A_1$--$A_4$ (Table~\ref{tab:assumptions}) & locale \texttt{cst\_assumptions} & assumed \\
+Effectiveness of $\dox{x'}$ & \texttt{apply\_iv\_severs}, \texttt{effective\_holds} & proved \\
+Pearl composition ($\delta_{\text{A1}}$-relaxed, $W$/$\Kfwk$ form) & \texttt{composition\_W\_holds}, \texttt{composition\_strict\_recovered} & proved \\
+$\Leftarrow$ direction (emission) & \texttt{left\_direction} & proved \\
+Lemma~\ref{lem:coincidence-soe} & \texttt{coincidence\_soe\_bound} & assumed ($A$-content) \\
+Lemma~\ref{lem:coincidence-timing} & \texttt{coincidence\_timing\_bound} & assumed ($A$-content) \\
+Lemma~\ref{lem:confounder} & \texttt{confounder\_bound} & assumed ($A$-content) \\
+Lemma~\ref{lem:silent} (effect $\Rightarrow D$; effect $\Rightarrow$ emit) & \texttt{silent\_no\_missed\_effect}, \texttt{silent\_emission\_complete} & proved \\
+HP AC2(a), two witnesses & \texttt{ac2a\_iff\_wit}, \texttt{witnesses\_logically\_independent} & proved \\
+HP AC2(b) + union bound & \texttt{ac2b\_holds}, \texttt{w2\_residual\_bound} & proved \\
+Per-witness envelope, regime criterion & \texttt{structural\_bound\_tighter\_iff} & proved \\
+Theorem~\ref{thm:cst} ($\Rightarrow$) & \texttt{cst\_conditional} & proved \\
+Scope-completeness (A2) & \texttt{cst\_scope\_complete}, \texttt{silent\_leak\_only\_out\_of\_scope} & proved \\
+Proposition~1, sequential (trace-threaded) & \texttt{chain\_ok\_iff\_steps}, \texttt{chain\_extend}, \texttt{chain\_conditional} & proved \\
+Proposition~1, parallel ensemble & \texttt{sweep\_three\_level\_bound} & proved \\
+Sweep instantiation (\S\ref{sec:eval-demo}) & \texttt{dead\_sweep\_envelope\_vs\_naive\_swept} & proved \\
+Within-/cross-boot calibration & \texttt{cst\_withinboot}, \texttt{cst\_crossboot} & model \\
+$\Kverified/\Kextended$ partition & \texttt{k\_partition\_disjoint}, \texttt{k\_partition\_complete} & proved \\
+seL4 external atomicity & \texttt{verified\_no\_fwk\_touch} & assumed \\
+$A_1$ for $\Kverified$ ($\delta_{\text{A1}}{=}0$) & \texttt{A1\_unconditional\_for\_verified} & proved (under above) \\
 \bottomrule
 \end{tabular}
 \end{table*}
