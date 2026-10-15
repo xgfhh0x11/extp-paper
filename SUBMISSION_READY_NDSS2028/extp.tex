@@ -93,8 +93,8 @@ ${\leq}0.37\%$ at $N{=}998$), Strong Observational Equivalence
 (replay determinism: $\scoreS{=}1.0000$ observed over $N{=}34$
 cross-boot trials, Clopper-Pearson one-sided $95\%$ upper bound on
 the per-run failure rate ${\leq}10.4\%$), and Measurement
-Interference (calibrated timing threshold,
-realized false-positive rate $0.61\%$--$2.78\%$). CST proves their
+Interference (family-wise calibrated timing threshold,
+realized per-event false-positive rate $0.69\%$). CST proves their
 composition grounds Pearl/Halpern-Pearl causal attribution within
 enumerated epistemic bounds; CST v1.0 establishes soundness under
 single-VCPU intervention scope and bare-metal microcode-stable
@@ -176,9 +176,10 @@ establishes trajectory-level replay determinism
 stronger than Pearl's probabilistic faithfulness and sufficient to
 rule out coincidence as an alternative explanation for observed
 divergence. \textbf{Measurement Interference (MI)} derives a
-calibrated timing detection threshold $\Dstar = z_{1-\alpha} \cdot
-\sigbase$ with empirically realized false-positive rate
-$0.61\%$--$2.78\%$, bounding the residual confounding that CapSep
+calibrated timing detection threshold $\Dstar = k_n \cdot
+\sigbase$, family-wise over the $n$ events of a trace, with
+empirically realized per-event false-positive rate $0.69\%$
+(family-wise $24\%$), bounding the residual confounding that CapSep
 does not eliminate. CST proves that together these three properties
 are sufficient to ground Pearl-style causal attribution within an
 explicitly enumerated epistemic envelope.
@@ -766,12 +767,23 @@ zero-perturbation samples per workload class and instrument, and
 confidence intervals on observed false-positive counts.
 
 \textbf{Claim.} For workload class $L$ under timing instrument $S$,
-there exists a calibrated detection threshold $\Dstar = z_{1-\alpha}
-\cdot \sigbase$ such that a per-event timing deviation above
-$\Dstar$ is detectable with false-positive rate bounded by $\alpha$
-(nominal $0.05$). $\sigbase$ is the sample standard deviation of
-post-warmup timing samples at zero perturbation ($\text{iter}{=}0$),
-computed within each experiment.
+there exists a calibrated detection threshold
+$\Dstar = k_n \cdot \sigbase$, with
+\begin{equation*}
+k_n \;=\; \sqrt{2}\; z_{1-\alpha/(2n)},
+\end{equation*}
+such that the per-event timing clause of $D$,
+$|\Delta_i^{\text{cf}} - \Delta_i^{\text{orig}}| > \Dstar$, has a
+nominal family-wise false-positive rate of $\alpha$ (nominal $0.05$)
+over the $n$ events of a trace: the $\sqrt{2}$ accounts for the
+difference of two samples, and the quantile divides $\alpha$ among
+the $n$ two-sided comparisons (Bonferroni). $k_n$ is a function of
+$n$ only ($k_{39} = 4.554$, $k_{100} = 4.923$, $k_{108} = 4.952$);
+implementations use a rational table of $k_n$ rounded down, which
+is the conservative direction for a negative clause. $\sigbase$ is
+the sample standard deviation ($n{-}1$ divisor) of the post-warmup
+timing samples of the pair's own zero-perturbation trace
+($\text{iter}{=}0$), computed within each experiment.
 
 \textbf{Timing instruments.} EXTp supports two instruments. $S_1$
 (LFENCE-sandwich-RDTSC) serializes instruction retirement before the
@@ -783,47 +795,65 @@ comparisons requiring serialization consistency.
 \textbf{Calibrated values.} For the $L_1$-pchase workload class
 under $S_1$: $\sigbase = 5{,}518$ cycle ($n{=}108$,
 boot\_log12, iter$=0$), slope $b = 4.481$ cycle/iter, $\Dstar =
-1.645 \times 5{,}518 = 9{,}077$ cycle. For $L_2$-pchase under $S_2$
-(boot\_log15, $n{=}108$, iter$=0$): $\sigbase = 4{,}604$ cycle,
-$b = 15.194$ cycle/iter, $\Dstar = 1.645 \times 4{,}604 = 7{,}574$
-cycle. The $\hat{\sigma}$ confidence interval at $n{=}108$ is
+k_{108} \times 5{,}518 = 4.952 \times 5{,}518 = 27{,}323$ cycle. For
+$L_2$-pchase under $S_2$ (boot\_log15, $n{=}39$, iter$=0$):
+$\sigbase = 4{,}604$ cycle, $b = 15.194$ cycle/iter, $\Dstar =
+k_{39} \times 4{,}604 = 4.554 \times 4{,}604 = 20{,}965$ cycle. The
+$\hat{\sigma}$ confidence interval at $n{=}108$ is
 $[4{,}867,\, 6{,}371]$ cycle ($95\%$), implying a $\Dstar$
 uncertainty range of approximately $+15\%/{-}12\%$ (asymmetric,
 reflecting the $\chi^2$ CI structure on $\hat{\sigma}$; upper:
-$1.645 \times 6{,}371 = 10{,}480$ cycle; lower: $1.645 \times 4{,}867
-= 8{,}006$ cycle). This is $\hat{\sigma}$-noise dominated, not a
+$4.952 \times 6{,}371 = 31{,}549$ cycle; lower: $4.952 \times 4{,}867
+= 24{,}101$ cycle). This is $\hat{\sigma}$-noise dominated, not a
 functional-form mismatch (\S\ref{sec:eval}).
 
-\textbf{Empirical FPR.} Realized false-positive rate is
-workload-dependent. For $L_1$-pchase under $S_1$ (boot\_log8,
-$n{=}978$): $0.61\%$ (Clopper-Pearson $95\%$ CI
-$[0.22\%, 1.33\%]$). For $L_1$-pchase under $S_1$ at finer grain
-(boot\_log12, iter$=0$, $n{=}108$): $2.78\%$ (CI
-$[0.58\%, 7.91\%]$). Both lie below nominal $\alpha{=}5\%$; the
-wider boot\_log12 interval reflects the smaller $n$.
+\textbf{Empirical FPR.} The realized rate is measured with the
+clause itself: from every boot log with per-event samples (74
+boots across the pchase and synthetic-guest classes; the
+\texttt{analyze\_pair\_clause.py} script in the artifact), the
+post-warmup zero-perturbation samples of each boot are split into
+two aligned halves $(T_o, T_o')$ --- a zero-intervention pair ---
+and the clause $\exists i.\,|T_o'[i] - T_o[i]| > k_n \sigbase$ is
+evaluated. Over $3{,}313$ event pairs, the per-event exceedance is
+$\arealized = 0.69\%$ (Clopper-Pearson $95\%$ CI $[0.44\%,
+1.04\%]$); per log, boot\_log8 gives $1/489 = 0.20\%$ and boot\_log12
+$1/54 = 1.85\%$. The family-wise rate --- the fraction of pairs on
+which the clause fires at all --- is $18/74 = 24.3\%$ (CI $[15.1\%,
+35.7\%]$) against the nominal $5\%$.
 
-The use of $z = 1.645$ (Gaussian one-sided $\alpha{=}5\%$
-quantile) for $\Dstar$ calibration is a deliberate design choice,
-not a distributional assumption: when the empirical timing
-distribution has heavier-than-Gaussian tails (as observed under
-$L_1$-pchase, where the empirical-to-nominal FPR ratio is
-${\approx}8.2{\times}$ for boot\_log8), the Gaussian threshold
-over-estimates tail probability and therefore yields empirical
-FPR strictly below the nominal $\alpha$. This is conservative in
-the false-positive direction by construction. The cost is reduced
-detection sensitivity for effects near $\Dstar$; this trade-off
-is intentional and is consistent with EXTp's broader emphasis on
-sound (rather than complete) attribution.
+The Gaussian quantile in $k_n$ is a design choice, not a
+distributional assumption, and the data show where it falls short:
+at $4.5$--$5\sigma$ the empirical tail is about four times the
+Gaussian one, so the realized family-wise rate exceeds the nominal
+one. The excess is a low-side tail (runs that complete
+${\sim}30$--$40$k cycles \emph{faster} than the mode, ${\sim}0.7\%$
+of samples) that coincides with no marker recorded in the trace
+(P-state or thermal-status change, APERF/MPERF ratio); its source is
+open. We therefore report the realized rates and propagate
+$\arealized$, not $\alpha$, into every envelope (\S\ref{sec:cst}).
+The cost of $k_n$ is detection sensitivity: a mean shift of
+$1.4\sigma$ exceeds $k_{108}\sigma$ at some event in roughly half
+of the traces of $n{=}108$; shifts of $2\sigma$ and above are
+detected in every sweep condition (\S\ref{sec:eval-meas}).
 
-\textbf{Scope: per-event detection.} MI claims per-event
-detection-threshold validity. The detection criterion's $\alpha$ is
-per-event: each event-indexed comparison carries nominal
-false-positive rate $\alpha$. For a trace of $N$ events, the
-expected false detection count under no perturbation is
-$N \cdot \arealized$. Trace-level false discovery rate (FWER) is the
-downstream consumer's aggregation responsibility; MI does not
-prescribe a correction method, as the appropriate correction depends
-on the consumer's use case.
+\textbf{Erratum (v2).} Version 1 of this paper calibrated $\Dstar =
+1.645\,\sigbase$ and reported realized false-positive rates of
+$0.61\%$--$2.78\%$. Those rates were measured with a different
+statistic --- per sample, one-sided, $x_i > \overline{T_\text{orig}}
++ 1.645\,\sigbase$ --- and not with the pair-difference clause that
+$D$, Lemma~\ref{lem:coincidence-timing} and the mechanized model
+define. Measured with the clause, the v1 threshold fires on
+$23.4\%$ of events and on every zero-intervention trace, which
+would make $\neg D$ unattainable. The family-wise threshold above
+and every number derived from it replace the v1 values; all proofs
+are parametric in $\Dstar$ and unchanged.
+
+\textbf{Scope: per-event clause, family-wise threshold.} The
+clause is per-event, as in $D$; the threshold is calibrated so that
+the \emph{trace} has nominal false-positive rate $\alpha$. What
+enters A3 and the coincidence bound is the realized per-event rate
+$\arealized$; what a consumer of $\neg D$ over a whole trace needs
+is the realized family-wise rate, reported above.
 
 \textbf{Pearl role.} MI underwrites A3 (formally stated in
 \S\ref{sec:cst}): timing deviations above $\Dstar$ are attributable
@@ -942,9 +972,9 @@ bounded by SOE's empirical $\scoreS = 1.0000$ over $N{=}34$
 cross-boot trials; attribution to $\dox{x'}$ is the
 maximum-likelihood explanation within the calibrated confidence
 envelope. The timing clause admits a residual coincidence rate
-$\arealized$, calibrated per workload class ($0.61\%$ under
-$L_1$-pchase/$S_1$ boot\_log8; $2.78\%$ under $L_1$-pchase/$S_1$
-boot\_log12; MI \S\ref{sec:mi}), incorporated into A3 as an
+$\arealized$, measured with the clause on zero-intervention pairs
+($0.69\%$ per event, Clopper-Pearson $95\%$ upper $1.04\%$, 74 boots;
+MI \S\ref{sec:mi}), incorporated into A3 as an
 explicitly bounded, not silenced, source of attribution uncertainty.
 
 \emph{Threat 2 --- Silent mechanism.} Addressed by scope-honesty
@@ -1178,10 +1208,11 @@ gates all informational output from the intervention apparatus
 synthetic workload's baseline timing standard deviation is
 $\sigbase = 6{,}237$ cycle (Clopper-Pearson via $\chi^2$ CI:
 $[5{,}476,\, 7{,}245]$, half-width $-12.2\%/+16.2\%$). The realized
-threshold is $\Dstar = 1.645 \cdot 6{,}237 = 10{,}259$ cycle. The
+threshold is $\Dstar = k_{100} \cdot 6{,}237 = 4.923 \cdot 6{,}237 =
+30{,}699$ cycle. The
 intervention signature is
 \begin{equation*}
-\overline{T_\text{cf}} - \overline{T_\text{orig}} = +342 \text{ cycle} \approx 0.03 \cdot \Dstar
+\overline{T_\text{cf}} - \overline{T_\text{orig}} = +342 \text{ cycle} \approx 0.011 \cdot \Dstar
 \end{equation*}
 (${\approx}70$~ns at 4.9~GHz; one extra \texttt{WriteRegisters}
 syscall accounts for this magnitude). The timing clause of $D$ is
@@ -1195,9 +1226,9 @@ implementation of the same intervention included an informational
 implementation, at $n{=}23$ per condition, the intervention
 signature is
 \begin{equation*}
-\overline{T_\text{cf}} - \overline{T_\text{orig}} = +26{,}617{,}599 \text{ cycle} \approx 2{,}595 \cdot \Dstar
+\overline{T_\text{cf}} - \overline{T_\text{orig}} = +26{,}617{,}599 \text{ cycle} \approx 867 \cdot \Dstar
 \end{equation*}
-where $\Dstar = 10{,}259$ cycle is the authoritative threshold
+where $\Dstar = 30{,}699$ cycle is the authoritative threshold
 calibrated under the silent-hook implementation
 (\S\ref{sec:eval-demo} above; the naïve-hook trace's own sample
 standard deviation $7{,}727$ cycle reflects an A1-modulo-broken
@@ -1220,8 +1251,8 @@ Figure~\ref{fig:demo-comparison} shows the contrast.
   \includegraphics[width=0.95\columnwidth]{fig/paper_section6_silent_histogram.pdf}
   \caption{Silent-hook demonstration: timing distribution of
     $\Korig$ vs $\Tcf$ ($N{=}100$ per condition). The intervention
-    signature ($+342$ cycle, $0.03\cdot\Dstar$) is dwarfed by the
-    detection threshold (dashed red, $\pm\Dstar = \pm10{,}259$
+    signature ($+342$ cycle, $0.011\cdot\Dstar$) is dwarfed by the
+    detection threshold (dashed red, $\pm\Dstar = \pm30{,}699$
     cycle). Distributions overlap heavily, consistent with
     A1-modulo holding under the silent implementation.}
   \label{fig:demo-silent}
@@ -1232,12 +1263,12 @@ Figure~\ref{fig:demo-comparison} shows the contrast.
   \includegraphics[width=0.95\columnwidth]{fig/paper_section6_signature_comparison.pdf}
   \caption{Intervention signature magnitude under two hook
     implementations, compared against the authoritative detection
-    threshold $\Dstar = 10{,}259$ cycle (silent-hook calibration,
+    threshold $\Dstar = 30{,}699$ cycle (silent-hook calibration,
     dashed). The naïve hook ($n{=}23$, Day 6): signature
-    $+26{,}617{,}599$ cycle $\approx 2{,}595\cdot\Dstar$, A1-modulo
+    $+26{,}617{,}599$ cycle $\approx 867\cdot\Dstar$, A1-modulo
     \emph{broken} (printf I/O latency dominates the timing surface).
     The silent hook ($n{=}100$, Day 8): signature $+342$ cycle
-    $\approx 0.033\cdot\Dstar$, A1-modulo \emph{holds} (intervention's
+    $\approx 0.011\cdot\Dstar$, A1-modulo \emph{holds} (intervention's
     own execution cost is well below the detection threshold). The
     SOE-clause divergence is identical in both implementations; only
     the timing clause distinguishes them.}
@@ -1364,14 +1395,18 @@ demonstration (\S\ref{sec:eval-demo}).
   \toprule
   Workload      & Instr & $\hat{\sigma}$ & $\Dstar$    & FPR     & $\scoreS$ \\
   \midrule
-  $L_1$-pchase  & $S_1$ & $5{,}518$      & $9{,}077$   & $0.61\%$ & $1.0000$ \\
-  $L_2$-pchase  & $S_2$ & $4{,}604$      & $7{,}574$   & $2.78\%$ & $1.0000$ \\
-  Synth.\ guest & $S_1$ & $6{,}237$      & $10{,}259$  & subthresh.\ & $1.0000$ \\
+  $L_1$-pchase  & $S_1$ & $5{,}518$      & $27{,}323$  & $0.20\%$ & $1.0000$ \\
+  $L_2$-pchase  & $S_2$ & $4{,}604$      & $20{,}965$  & $0.69\%^{\dagger}$ & $1.0000$ \\
+  Synth.\ guest & $S_1$ & $6{,}237$      & $30{,}699$  & subthresh.\ & $1.0000$ \\
   \bottomrule
   \end{tabular}
 
   \vspace{0.3em}
-  \footnotesize{Pchase rows: $N{=}998$ within-boot. Synthetic-guest
+  \footnotesize{$\Dstar = k_n\sigbase$ with $n = 108, 39, 100$.
+  FPR: per-event exceedance of the pair-difference clause on
+  zero-intervention pairs ($L_1$: boot\_log8, 489 pairs;
+  $^{\dagger}$pooled over all 74 boots, CI $[0.44\%, 1.04\%]$).
+  Family-wise realized rate $24.3\%$ (\S\ref{sec:mi}). Synthetic-guest
   row: $n{=}100$ per condition, $\chi^2$ 95\% CI on $\hat{\sigma}$:
   $[5{,}476,\,7{,}245]$, half-width $-12.2\%/+16.2\%$. ``Subthresh.''
   for synth.\ FPR: silent-hook intervention signature $+342$ cycle
@@ -1990,8 +2025,9 @@ $(\text{instr}, \text{wl-class}, \text{gw-type}, \text{scope},
   Microarchitectural pathways outside $\mathcal{S}_\text{in}$
   (\S\ref{sec:threat}) are explicitly out of A2's scope.
 \item \textbf{A3 (Confounder bound).} Per-event timing fluctuations
-  $|\Delta_i| < \Dstar$ under no intervention, with realized
-  false-positive rate $\arealized \leq \alpha$ (MI \S\ref{sec:mi}).
+  $|\Delta_i^{\text{cf}} - \Delta_i^{\text{orig}}| \le \Dstar$ under
+  no intervention, with realized per-event false-positive rate
+  $\arealized$ ($0.69\%$ at $\Dstar = k_n\sigbase$; MI \S\ref{sec:mi}).
 \item \textbf{A4 (Replay determinism).} In the absence of
   intervention, $\Korig$ and any fresh-boot replay $R$ satisfy
   $\forall i:\ \text{observable}(\Korig)_i = \text{observable}(R)_i$
@@ -2059,15 +2095,17 @@ workload class in \S\ref{sec:mi}.
 \textit{Proof.} A3's empirical content is the calibrated
 per-event FPR: $\Pr[|\Delta_i^{\text{cf}} -
 \Delta_i^{\text{orig}}| > \Dstar \mid \text{no intervention}] \leq
-\arealized$, with $\arealized = 0.61\%$ under L1-pchase/$S_1$
-(\texttt{boot\_log8}, $N{=}978$) and $2.78\%$ under L1-pchase/$S_1$
-at finer grain (\texttt{boot\_log12}, $N{=}108$) --- both bounded
-below the nominal $\alpha = 5\%$ by the conservative Gaussian
-threshold construction (\S\ref{sec:mi}). The bound is per-event;
-trace-level aggregation is the downstream consumer's
-responsibility (\S\ref{sec:mi}, ``Scope: per-event detection''). The
-timing-clause coincidence probability at any single event $i$ is
-thus bounded by $\arealized$ for the calibrated workload class.
+\arealized$, with $\arealized = 0.69\%$ (Clopper-Pearson $95\%$ CI
+$[0.44\%, 1.04\%]$) measured with this very clause on $3{,}313$
+event pairs from 74 zero-intervention traces at $\Dstar = k_n
+\sigbase$ (\S\ref{sec:mi}). The realized rate exceeds the Gaussian
+nominal per-event rate $\alpha/n$, because the empirical tail is
+heavier than Gaussian; the bound is therefore the realized rate,
+reported, not the nominal one. The bound is per-event; the
+family-wise realized rate over a whole trace ($24.3\%$) is reported
+in \S\ref{sec:mi} for consumers of $\neg D$. The timing-clause
+coincidence probability at any single event $i$ is thus bounded by
+$\arealized$ for the calibrated workload class.
 \qed
 
 \textbf{Remark on naming.} The previous draft labeled these as
@@ -2416,11 +2454,11 @@ inequality: the structural witness gives the tighter envelope
 decided once and for all by the framework --- it is decided by the
 calibration regime, and the two regimes reported in
 \S\ref{sec:capsep} fall on opposite sides of it. Within-boot
-($\epsSOE \leq 0.37\%$ at $N{=}998$, $\arealized = 0.61\%$) the
-structural witness is tighter: $1.35\%$ against $1.59\%$.
+($\epsSOE \leq 0.37\%$ at $N{=}998$, $\arealized = 0.69\%$) the
+structural witness is tighter: $1.43\%$ against $1.75\%$.
 Cross-boot ($\epsSOE \leq 10.4\%$ at $N{=}34$) the ordering
-reverses and the timing witness is tighter: $11.62\%$ against
-$21.41\%$. The practical consequence is that a consumer of CST
+reverses and the timing witness is tighter: $11.78\%$ against
+$21.49\%$. The practical consequence is that a consumer of CST
 claims should report the envelope of the witness that actually
 fired rather than the blanket union bound, and that the question
 ``which clause carries more evidential weight?'' has no
