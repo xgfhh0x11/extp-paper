@@ -163,8 +163,15 @@ distributions and idealized structural equations. Exploit replay
 operates on concrete microarchitectural traces --- TSC measurements
 with asymmetric noise floors, VM-exit surfaces with finite register
 coverage, capability-mediated VMM machinery with empirical rather
-than axiomatic side-effect bounds. To our knowledge, no prior work
-formally bridges this gap.
+than axiomatic side-effect bounds. The two traditions nearest to
+the problem each supply half of the apparatus and neither states
+the soundness conditions: replay-based intrusion analysis
+re-executes a compromised system faithfully~\cite{dunlap2002revirt}
+but attaches no causal claim to a perturbed replay, and root-cause
+analysis of exploits asks ``what if'' over a flagged
+execution~\cite{yagemann2021arcus} but answers it by symbolic
+satisfiability, deliberately without re-execution. To our knowledge,
+no prior work formally bridges this gap.
 
 We present \textbf{EXTp}, and with it the \textbf{first soundness
 theorem for counterfactual causal attribution in exploit analysis
@@ -1688,39 +1695,58 @@ database application failures in a probabilistic, multi-run
 statistical setting; EXTp targets hypervisor exploit execution on a
 formally verified microkernel in a deterministic single-configuration
 replay setting; and AID does not provide a formal soundness theorem
-for its causal attributions. EXTp's CST is the first soundness
-theorem for causal exploit attribution that combines two
-ingredients absent from AID: a formally verified computational
-substrate (seL4's L4.verified~\cite{klein2014sel4}), and admissibility
-conditioned on an enumerated antecedent envelope $(A_1, A_2, A_3, A_4)$
-with bounds propagated per-claim through the validity envelope
-$\mathcal{E}$. The distinction is not mechanization alone --- CST's
-conditional core is machine-checked, though its empirical
-antecedents remain calibration-supplied
-(\S\ref{sec:discussion-isabelle}) --- but the conditioning structure:
-AID issues bounded probabilistic attributions; CST issues
-attributions whose bounds are conditioned on a named, falsifiable
-set of structural and empirical antecedents.
+for its causal attributions. CST adds two ingredients absent from
+AID: a formally verified substrate (seL4's
+L4.verified~\cite{klein2014sel4}) and admissibility conditioned on
+an enumerated antecedent envelope $(A_1, A_2, A_3, A_4)$ with bounds
+propagated per claim. AID issues bounded probabilistic
+attributions; CST issues attributions whose bounds are conditioned
+on a named, falsifiable set of antecedents.
 
-CacheWarp~\cite{zhang2024cachewarp} (USENIX Security 2024)
-demonstrates software-based fault injection on AMD SEV-ES/SNP by
-reverting modified cache lines to stale state, producing controlled
-execution divergence. CacheWarp uses controlled state perturbation
-to demonstrate AMD TEE integrity violations, sharing the
-surface-level pattern of intervention-induced divergence with EXTp
-but operating as an attack methodology rather than an analysis
-framework, and without a causal formalism.
-WeSee~\cite{schlueter2024wesee} (IEEE S\&P 2024) and
-Heckler~\cite{schlueter2024heckler} (USENIX Security 2024) inject
-malicious interrupts into AMD SEV-SNP and Intel TDX VMs to induce
-arbitrary register and memory modifications. WeSee and Heckler
-exploit the interrupt injection interface as an attack vector, with
-the hypervisor as adversary and the VM as target. EXTp inverts this
-stance: the VMM is the analyst, the intervention is methodologically
-controlled, and the goal is causal attribution rather than security
-violation. The interrupt injection surface motivates future
-extension of EXTp's intervention surface to cover \#VC and external
-interrupt boundaries (\S\ref{sec:discussion}).
+\textbf{Replay and root-cause analysis.} EXTp descends from two
+lines of work that it does not replace. Virtual-machine logging
+and replay for intrusion analysis began with
+ReVirt~\cite{dunlap2002revirt} (OSDI 2002), which replays a
+compromised guest instruction by instruction below the OS; its
+authors note that an analyst may perturb the replaying machine but
+must then abandon the log --- the perturbed run carries no
+guarantee. Time-travel debugging~\cite{king2005ttvm} and
+hardware-trace reconstruction~\cite{cui2018rept} extend replay as
+inspection. ARCUS~\cite{yagemann2021arcus} (USENIX Security 2021)
+is the closest on the attribution side: it localizes a flagged
+exploit's root cause by posing ``what if'' questions --- symbolic
+satisfiability tests over the recorded control-flow trace,
+``without needing concrete inputs or re-execution'' --- so it asks
+whether a vulnerable state \emph{could} have been reached, and its
+authors state that completeness cannot be guaranteed. EXTp asks
+the question neither line answers: under which stated conditions
+does a divergence observed on a counterfactual re-execution
+\emph{soundly} attribute the outcome to the intervened input.
+Replay supplies the mechanism and ARCUS the question; CST supplies
+the admissibility conditions and the proof. Concurrent work outside
+security applies structural causal models with re-execution to
+LLM-agent trajectories~\cite{shah2026car} without a soundness
+theorem; Chakraborty, Caulfield and
+Pym~\cite{chakraborty2025causality} give a Halpern-Pearl-aligned
+intervention logic for system \emph{models}, with no replay or
+measurement layer. On seL4 itself, Cock et
+al.~\cite{cock2014lastmile} measured timing channels and found the
+verification silent on timing; MI is EXTp's answer at the
+measurement layer.
+
+CacheWarp~\cite{zhang2024cachewarp} (USENIX Security 2024) reverts
+modified cache lines on AMD SEV-ES/SNP to produce controlled
+execution divergence; WeSee~\cite{schlueter2024wesee} (IEEE S\&P
+2024) and Heckler~\cite{schlueter2024heckler} (USENIX Security 2024)
+inject malicious interrupts into SEV-SNP and TDX VMs to modify
+registers and memory. All three share the pattern of
+intervention-induced divergence with EXTp but are attack
+methodologies with the hypervisor as adversary and no causal
+formalism. EXTp inverts the stance: the VMM is the analyst, the
+intervention is controlled, and the goal is attribution. Their
+interrupt-injection surface motivates extending EXTp's intervention
+surface to \#VC and external interrupt boundaries
+(\S\ref{sec:discussion}).
 
 Soloviev and Halpern~\cite{soloviev2021nested} (arXiv 2021) extend
 the Halpern-Pearl framework to capture nested causal statements
@@ -1736,55 +1762,31 @@ the gap that EXTp closes.
 
 \subsection{Hypervisor Exploit Surface}
 
-CVE-2024-21305~\cite{tandasat2024hvci} is an HVCI security feature
-bypass in Hyper-V enabling arbitrary kernel-mode code execution via
-non-secure VMCS configuration. The divergent execution path
-structure --- EPT permission misconfig producing observable VM-exit
-differences --- is the structural analog of EXTp's
-privilege-check-bypass demonstration (\S\ref{sec:eval-demo}).
-CVE-2025-22224 (and -22225/-22226)~\cite{broadcom2025vmsa} is a
-VMware ESXi guest-to-host escape chain (VMSA-2025-0004) demonstrating
-that VMM implementation bugs constitute an out-of-scope causal
-pathway for EXTp's current framework.
-
-Training Solo~\cite{barberis2025trainingsolo} (VUSec, IEEE S\&P
-2025) presents self-training Spectre-v2 attacks on Intel CPUs
-bypassing existing domain isolation mitigations, uncovering two
-hardware issues (CVE-2024-28956, CVE-2025-24495) that break
-guest-to-hypervisor isolation. VMScape~\cite{vmscape2025} (ETH
-Zurich, CVE-2025-40300, Sep 2025) exploits incomplete branch
-predictor isolation across guest/host boundaries on AMD Zen CPUs.
-Both demonstrate branch predictor state as a causal pathway falling
-within EXTp's declared silent microarchitectural channels scope
-boundary (\S\ref{sec:threat}). The CMD property class
-(\S\ref{sec:discussion}) is designed to bring this class ---
-alongside cache, TLB, and other microarchitectural side-state ---
-into a future observable surface; Training Solo and VMScape are
-concrete instances motivating CMD's design priorities.
-
-XSA-472~\cite{xsa472} (Xen Viridian interface, Sep 2025) reports a
-cluster of three vulnerabilities. The two NULL pointer dereferences
-(CVE-2025-27466, CVE-2025-58142) represent the class of
-framework-internal isolation violations that CapSep's disjointness
-requirement ($\Kint \cap \Kfwk = \emptyset$) is designed to prevent.
-The race condition (CVE-2025-58143) falls within EXTp's multi-VCPU
-scope boundary (\S\ref{sec:threat}); A4 deterministic replay
-requires future extension before such cases become tractable.
+Recent hypervisor CVEs map onto EXTp's scope boundaries.
+CVE-2024-21305~\cite{tandasat2024hvci} (Hyper-V HVCI bypass via
+non-secure VMCS configuration) has the divergent-path structure of
+EXTp's privilege-check-bypass demonstration (\S\ref{sec:eval-demo});
+the ESXi escape chain VMSA-2025-0004~\cite{broadcom2025vmsa} is a
+VMM-implementation pathway EXTp declares out of scope. Training
+Solo~\cite{barberis2025trainingsolo} (IEEE S\&P 2025) and
+VMScape~\cite{vmscape2025} (CVE-2025-40300) break guest-to-hypervisor
+isolation through branch-predictor state, the silent
+microarchitectural class that the CMD property
+(\S\ref{sec:discussion}) is designed to bring into an observable
+surface. XSA-472~\cite{xsa472} pairs two framework-internal
+NULL dereferences, the class CapSep's disjointness
+$\Kint \cap \Kfwk = \emptyset$ excludes, with a race
+(CVE-2025-58143) inside EXTp's multi-VCPU boundary
+(\S\ref{sec:threat}).
 
 \subsection{Formal Methods for Hypervisors}
 
-seL4~\cite{klein2009sel4,klein2014sel4} provides EXTp's formal trust
-anchor. CertiKOS~\cite{gu2016certikos} (Gu et al., OSDI 2016)
-verifies a concurrent OS kernel with fine-grained locking in Coq,
-including the mCertiKOS hypervisor extension. EXTp's choice of seL4
-over CertiKOS reflects substrate maturity for x86-64 VT-x extensions
-and seL4's established Isabelle/HOL proof harness; CertiKOS's
-compositional layered approach is an alternative formal substrate
-for future EXTp ports. Komodo~\cite{ferraiuolo2017komodo}
-(Ferraiuolo et al., SOSP 2017) verifies a software enclave monitor
-in Vale verified assembly on ARM. Both show that verifying system
-software in the virtualization stack is tractable; EXTp builds on
-seL4 rather than providing a new verified kernel.
+seL4~\cite{klein2009sel4,klein2014sel4} is EXTp's formal trust
+anchor; CertiKOS~\cite{gu2016certikos} (OSDI 2016, Coq, with the
+mCertiKOS hypervisor) and Komodo~\cite{ferraiuolo2017komodo} (SOSP
+2017, verified enclave monitor) are alternative substrates. seL4 was
+chosen for x86-64 VT-x maturity and its Isabelle/HOL harness; EXTp
+builds on a verified kernel rather than providing one.
 
 The object of mechanization also differs. seL4, CertiKOS, and Komodo
 machine-check the \emph{substrate} --- kernel or monitor correctness,
@@ -1802,15 +1804,8 @@ attributability of a divergence.
 
 Pearl~\cite{pearl2009causality} and
 Halpern-Pearl~\cite{halpern2005causes} provide EXTp's theoretical
-foundation. Soloviev, Balliu, and
-Guanciale~\cite{soloviev2024modal} (IEEE CSF 2024) introduce a
-modal logic framework for security properties capturing
-confidentiality, integrity, and robust declassification variants.
-This operates at the policy specification level rather than the
-operational causal attribution level; it complements EXTp's
-approach.
-
-Prior applications of causal inference to security take two forms.
+foundation. Prior applications of causal inference to security
+take two forms.
 Dependency tracking approaches such as
 BackTracker~\cite{king2003backtracking} (King and Chen, SOSP 2003)
 follow causal chains through system-call dependencies for intrusion
