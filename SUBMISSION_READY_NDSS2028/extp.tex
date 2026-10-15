@@ -171,7 +171,8 @@ but attaches no causal claim to a perturbed replay, and root-cause
 analysis of exploits asks ``what if'' over a flagged
 execution~\cite{yagemann2021arcus} but answers it by symbolic
 satisfiability, deliberately without re-execution. To our knowledge,
-no prior work formally bridges this gap.
+no prior work states the conditions under which a perturbed replay
+yields a sound attribution.
 
 We present \textbf{EXTp}, and with it the \textbf{first soundness
 theorem for counterfactual causal attribution in exploit analysis
@@ -226,7 +227,8 @@ stability $\scoreS = 1.0000$ over $N{=}34$ trials.
 (confounder boundedness) --- each making falsifiable claims about a
 distinct dimension of the replay machinery.
 \textbf{(C3)} CST: the first formal soundness theorem for
-counterfactual causal attribution in exploit analysis, with explicit
+counterfactual causal attribution in exploit analysis grounded in a
+verified substrate, with explicit
 Pearl/Halpern-Pearl correspondence, declared divergence points, and a
 proof whose \emph{conditional core} --- the composition of the
 antecedent envelope $(A_1, A_2, A_3, A_4)$ into the Pearl/Halpern-Pearl
@@ -235,10 +237,10 @@ the empirical antecedents calibration-supplied and the seL4 lifting
 left to future work (\S\ref{sec:discussion-isabelle}).
 \textbf{(C4)} A privilege-check-bypass demonstration modeled on the
 CrackArmor confused-deputy exploit pattern\footnote{The AppArmor
-confused-deputy cluster (9 CVEs); analyzed using EXTp's vault
-infrastructure. Chronomaly (CVE-2025-38352, POSIX CPU timer UAF) is
-a scope boundary example, not a demonstration target; see \S3 Out of
-Scope, item~1.} on bare-metal seL4 showing an end-to-end
+confused-deputy cluster (9 CVEs), analyzed with EXTp. Chronomaly
+(CVE-2025-38352, POSIX CPU timer UAF) is a scope boundary example,
+not a demonstration target; see \S\ref{sec:threat}, Out of Scope,
+item~1.} on bare-metal seL4 showing an end-to-end
 CST-admissible causal attribution from a forged capability token to
 an observable VM-exit divergence.
 
@@ -280,8 +282,9 @@ proof~\cite{klein2009sel4}. $\Kextended \supseteq \{\text{MapEPT},
 in Appendix~\ref{app:kextended}) comprises the x86-64 VT-x extension
 operations that EXTp's intervention machinery uses directly; these
 lie outside L4.verified's formal scope and their atomicity properties
-are empirically bounded (Clopper-Pearson $95\%$ CI $\leq 10.4\%$ at
-$N{=}34$ cross-boot; the CapSep-level bound $\leq 0.37\%$ at $N{=}998$
+are empirically bounded (Clopper-Pearson one-sided $95\%$ upper bound
+$\leq \EpsCross\%$ at $N{=}34$ cross-boot; the CapSep-level bound
+$\leq \EpsWithin\%$ at $N{=}998$
 is detailed in \S\ref{sec:capsep}). The distinction matters: CapSep's
 formal guarantee for $\Kverified$ is unconditional; for $\Kextended$
 it is empirically conditioned and subject to Q4 validation
@@ -820,9 +823,9 @@ false-positive rates; Appendix~\ref{app:erratum} lists the corrections.}\fi
 \textbf{Timing instruments.} EXTp supports two instruments. $S_1$
 (LFENCE-sandwich-RDTSC) serializes instruction retirement before the
 TSC read, adding ${\sim}3\times$ noise over $S_2$ (bare RDTSC) but
-eliminating out-of-order TSC read artifacts. $S_2$ is preferred for
-detection-threshold calibration; $S_1$ for cross-workload
-comparisons requiring serialization consistency.
+eliminating out-of-order TSC read artifacts. $S_1$ served the $L_1$,
+synthetic-guest and demonstration calibrations, $S_2$ the $L_2$ one;
+instruments are never mixed within a pair.
 
 \textbf{Calibrated values.} $L_1$-pchase under $S_1$ (boot\_log12,
 iter$=0$, $n{=}\NLOne$): $\sigbase = \SigLOne$ cycle, slope $b =
@@ -930,8 +933,8 @@ divergence arose. Furthermore, the admissible claim satisfies:
   Lemma~\ref{lem:confounder}. The witness-fixity construction is
   derived in full in Appendix~\ref{app:proofs}, Composition into
   Theorem~\ref{thm:cst}, item~(iv), which also refines the residual
-  envelope per witness clause (structural vs.\ timing), with which
-  is tighter depending on the calibration regime.
+  envelope per witness clause (structural vs.\ timing) and states
+  which is tighter in each calibration regime.
 \end{enumerate}
 \end{theorem}
 
@@ -974,8 +977,9 @@ three threats in turn.
 
 \emph{Threat 1 --- Coincidence.} Under A4 (replay determinism,
 grounded by SOE's $\scoreS = 1.0000$ over $N{=}34$ cross-boot
-trials), spontaneous divergence on the 4-tuple surface is ruled out
-at false-positive rate zero: any 4-tuple divergence in $\Tcf$
+trials), spontaneous divergence on the 4-tuple surface is observed
+at false-positive rate zero and bounded by $\epsSOE$: any 4-tuple
+divergence in $\Tcf$
 relative to $\Korig$ requires a trace-distinguishing input
 difference; under the single-configuration discipline, the only
 controlled trace-distinguishing input is $\dox{x'}$. External
@@ -1014,7 +1018,7 @@ A3's noise model rather than constituting unbound confounders
 \S\ref{sec:capsep}).
 
 \textbf{Compositional extension.}
-\begin{proposition}[Sequential composition]
+\begin{proposition}[Sequential composition]\label{prop:seq}
 $\langle \text{do}(X_1) \rightsquigarrow_{i_1} \cdots
 \rightsquigarrow_{i_n} D \mid A; \mathcal{E}\rangle$ is admissible
 iff every atomic step is independently admissible under
@@ -1102,9 +1106,9 @@ executes under EXTp's VT-x control loop. Serial console infrastructure
 null modem cable) provides out-of-band I/O during bare-metal runs.
 No network connectivity is present during any experiment.
 
-All timing measurements use bare RDTSC ($S_2$) for
-detection-threshold calibration and LFENCE-sandwich-RDTSC ($S_1$)
-for cross-workload comparisons. EXTp's VMM is compiled with gcc 12.3
+Two timing instruments are used, $S_1$ (LFENCE-sandwich-RDTSC) and
+$S_2$ (bare RDTSC); Table~\ref{tab:meas} states which calibration
+used which. EXTp's VMM is compiled with gcc 12.3
 at \texttt{-O2} (build hash in Appendix~\ref{app:build}).
 
 \subsection{Privilege-Check-Bypass Demonstration}\label{sec:eval-demo}
@@ -1132,8 +1136,7 @@ bypassed, branches execution into a privileged path --- while
 maintaining the single-VCPU determinism CST v1.0 requires. It
 produces both a clean SOE-clause divergence signal at event~1 and
 an empirical surface on which the timing clause and the A1-modulo
-bound can be independently observed
-(\S\ref{sec:eval-demo}, subsequent subsubsections).
+bound can be independently observed (below).
 
 \subsubsection{Scenario}
 
@@ -1142,7 +1145,7 @@ control flow that branches on a capability token held in register
 \texttt{r8}.\footnote{\texttt{r8} is used rather than \texttt{rax}
 because the VMM's CPUID handler deterministically writes the
 ``EXTp'' vendor ID into \texttt{rax}--\texttt{rdx} on every CPUID
-exit (\S\ref{sec:framework}), clobbering those registers; \texttt{r8}
+exit, clobbering those registers; \texttt{r8}
 is preserved across CPUID handling, making it a faithful carrier of
 the capability-token state across event boundaries.} The default
 path (\texttt{r8 = 0}) executes a benign CPUID at offset 13
@@ -1154,8 +1157,7 @@ divergence at event 1.
 
 \begin{table}[tb]
   \caption{Demo divergence prediction (matches observation across
-    all $N{=}200$ post-warmup trials, bare-metal Intel Alder Lake
-    per \S\ref{sec:eval}).}
+    all 200 runs, \NDemo{} per condition, bare-metal Intel Alder Lake).}
   \label{tab:demo-divergence}
   \centering
   \small
@@ -1201,8 +1203,9 @@ The admissible CST claim emitted in every trial is:
 \big\langle \text{do}(\text{r8}{=}\text{0xDEAD}) \rightsquigarrow_{1}
 D \,\big|\, A_1^{\text{mod}}, A_2, A_3, A_4;\, \mathcal{E}_{\text{v1.0}} \big\rangle
 \end{equation*}
-The SOE clause fires with false-positive rate zero (deterministic
-4-tuple equality under A4's $\scoreS{=}1.0000$ guarantee): the RIP
+The SOE clause fires with observed false-positive rate zero
+(bounded by $\epsSOE$; 4-tuple equality under A4's
+$\scoreS{=}1.0000$): the RIP
 delta $\text{0x1000d} \to \text{0x10016}$ and RAX delta
 $\text{0x0} \to \text{0x80000008}$ are observed in every
 cross-condition pair, and zero divergences are observed in any
@@ -1226,10 +1229,13 @@ intervention signature is
 \overline{T_\text{cf}} - \overline{T_\text{orig}} = +\SigSilent \text{ cycle} \approx \SigSilentRatio \cdot \Dstar
 \end{equation*}
 (${\approx}\SigSilentNs$~ns at 4.9~GHz; one extra \texttt{WriteRegisters}
-syscall accounts for this magnitude). The timing clause of $D$ is
-\textbf{subthreshold} in every trial: the SOE clause is the sole
-divergence signal, and the A1-modulo bound holds at paper-grade
-$N$. Figure~\ref{fig:demo-silent} shows the timing distribution.
+syscall accounts for this magnitude). Per event, \SilentExceed{} of
+\NDemo{} pairs exceed $\Dstar$ (CI $[\SilentExceedLo\%,
+\SilentExceedHi\%]$), consistent with $\arealized$ and with no
+systematic shift: the silent hook leaves the timing surface at its
+noise floor, the SOE clause is the sole \emph{systematic} divergence
+signal, and the A1-modulo bound holds at paper-grade $N$
+(Figure~\ref{fig:demo-silent}).
 
 \paragraph{Naïve hook (counter-demonstration).} An earlier
 implementation of the same intervention included an informational
@@ -1318,7 +1324,7 @@ and the two semantic distractors \texttt{0xCAFE} and
 \texttt{0xBEEF}. Each of the 33 $r_8$ values is applied as an
 \emph{independent atomic intervention} at event~0; the sweep is a
 \emph{parallel ensemble} of Theorem~\ref{thm:cst} instances rather
-than a sequential composition under Proposition~1. Each run begins
+than a sequential composition under Proposition~\ref{prop:seq}. Each run begins
 from an independent fresh-boot state, applies a single
 $\text{do}(r_8{=}v)$ at the designated event, and is evaluated
 against $\Korig$ by the same atomic admissibility check
@@ -1344,7 +1350,7 @@ This map instantiates the witness-refined ensemble envelope of
 Appendix~\ref{app:proofs}: one admissible claim (structural clause)
 among 32 scope-honestly silent inputs that emit no claim, so the
 sweep's aggregate envelope is that of a single structural claim
-($1.35\%$ within-boot), not the $33{\times}$ figure a per-input
+($\EnvWithinStruct\%$ within-boot), not the $33{\times}$ figure a per-input
 accounting would suggest. The instantiation is machine-checked
 (\S\ref{sec:discussion-isabelle}).
 
@@ -1398,43 +1404,43 @@ demonstration (\S\ref{sec:eval-demo}).
   \small
   \begin{tabular}{@{}llrrrr@{}}
   \toprule
-  Workload      & Instr & $\hat{\sigma}$ & $\Dstar$    & FPR     & $\scoreS$ \\
+  Workload      & Instr & $\sigbase$ & $\Dstar$    & FPR     & $\scoreS$ \\
   \midrule
-  $L_1$-pchase  & $S_1$ & $\SigLOne$     & $\DstarLOne$  & $\LogEightPct\%$ & $1.0000$ \\
+  $L_1$-pchase  & $S_1$ & $\SigLOne$     & $\DstarLOne$  & $\ARealized\%^{\dagger}$ & $1.0000$ \\
   $L_2$-pchase  & $S_2$ & $\SigLTwo$     & $\DstarLTwo$  & $\ARealized\%^{\dagger}$ & $1.0000$ \\
-  Synth.\ guest & $S_1$ & $\SigDemo$     & $\DstarDemo$  & subthresh.\ & $1.0000$ \\
+  Synth.\ guest & $S_1$ & $\SigDemo$     & $\DstarDemo$  & noise fl.\ & $1.0000$ \\
   \bottomrule
   \end{tabular}
 
   \vspace{0.3em}
   \footnotesize{$\Dstar = k_n\sigbase$, $n = \NLOne, \NLTwo, \NDemo$.
   FPR: per-event exceedance of the pair-difference clause on
-  zero-intervention pairs ($L_1$: boot\_log8, \LogEightEvents{} pairs;
-  $^{\dagger}$pooled over all \NullBoots{} boots, CI $[\ARealizedLo\%,
-  \ARealizedHi\%]$; family-wise $\FamRate\%$, \S\ref{sec:mi}).
-  Synthetic guest: $n{=}\NDemo$ per condition, $\chi^2$ 95\% CI on
-  $\hat{\sigma}$ $[\SigDemoLo,\,\SigDemoHi]$; ``subthresh.'': the
-  silent-hook signature $+\SigSilent$ cycle ($\SigSilentRatio\cdot\Dstar$)
-  stays below threshold.}
+  zero-intervention pairs, $^{\dagger}$pooled over all \NullBoots{}
+  boots (CI $[\ARealizedLo\%, \ARealizedHi\%]$; per-log values and the
+  family-wise $\FamRate\%$ in \S\ref{sec:mi}). Synthetic guest:
+  $n{=}\NDemo$ per condition, $\chi^2$ 95\% CI on $\sigbase$
+  $[\SigDemoLo,\,\SigDemoHi]$; ``noise fl.'': the silent-hook
+  signature is $+\SigSilent$ cycle ($\SigSilentRatio\cdot\Dstar$) at
+  the mean and \SilentExceed{} of \NDemo{} events exceed $\Dstar$,
+  consistent with $\arealized$.}
 \end{table}
 
 The synthetic-guest $\sigbase$ ($\SigDemo$ cycle) sits within
 ${\approx}13\%$ of the $L_1$-pchase baseline ($\SigLOne$ cycle),
 consistent with both workloads inhabiting the same noise-floor
-regime of bare-RDTSC sampling under microcode \texttt{0x3e}; the
+regime of the same instrument ($S_1$) under microcode \texttt{0x3e}; the
 modest elevation is attributable to the synthetic binary's
 conditional branch (\texttt{cmp + je}) adding $\mu$op scheduling
-variance over pchase's straight-line loop. The Day~6b cross-boot
-probe ($n{=}69$, three independent boots in alternation) gave
-$\sigbase = 5{,}614$ cycle for the same workload, agreeing with the
-Day~8 single-boot value within $\chi^2$ CI overlap --- $N{=}3$
-cross-boot replication for the synthetic class alongside the
-$N{=}34$ result for pchase.
+variance over pchase's straight-line loop. A separate cross-boot
+probe ($N{=}\NBootsDemoCross$ boots, $n{=}\NDemoCross$ pooled
+samples) gave $\sigbase = \SigDemoCross$ cycle, within $\chi^2$ CI
+overlap of the single-boot value --- $N{=}\NBootsDemoCross$
+cross-boot replication for the synthetic class.
 
 $\scoreS = 1.0000$ across $N{=}34$ cross-boot trials (Clopper-Pearson
 $95\%$ upper bound $\leq 10.4\%$) confirms that fresh-boot discipline
-produces deterministic 4-tuple trajectories for the characterized
-workload classes.
+produces deterministic 4-tuple trajectories for the pchase classes;
+the synthetic class has the $N{=}\NBootsDemoCross$ replication above.
 
 \subsection{Limitations}\label{sec:eval-lim}
 
@@ -1444,8 +1450,6 @@ Four concrete limitations bound the current evaluation.
 bound ($\leq 10.4\%$) is wide, reflecting the 34-trial sample. The
 operational within-boot bound ($\leq 0.37\%$, $N{=}998$) is tighter
 but does not cover cross-boot microarchitectural variation.
-Expanding $N$ is straightforward mechanically; the primary cost is
-machine time.
 
 \textbf{$\hat{\sigma}$ confidence at $n{=}\NLOne$.} The asymmetric
 $\chi^2$ interval on $\hat{\sigma}_{L_1\text{-pchase}}$ puts
@@ -1607,7 +1611,9 @@ $\langle \text{do}(X{=}x'_\text{exploit}) \rightsquigarrow_i \neg D
 \mid A; \mathcal{E}\rangle$. The patch is verified to sever the
 causal pathway iff (i)~admissibility holds (envelope match,
 assumption validation, intervention surface) and (ii)~no divergence
-is observed. Unlike behavioral regression testing, which can fail
+is observed, the timing clause judged at the family-wise realized
+rate $\FamRate\%$ (\S\ref{sec:mi}). Unlike behavioral regression
+testing, which can fail
 silently when the patched binary exercises a different code path
 incidentally, this verification is causal: the patch is
 attributable as the cause of non-divergence.
@@ -1636,7 +1642,7 @@ $\delta_{\text{A1}}{=}0$), the Halpern-Pearl AC2(b) witness
 construction with its union bound, the per-witness envelope
 refinement and its regime criterion, Lemma~\ref{lem:silent} in its
 completeness direction (effect implies divergence and emission; the
-converse is definitional), and Proposition~1's sequential
+converse is definitional), and Proposition~\ref{prop:seq}'s sequential
 composition with explicit trace threading (each step's baseline is
 the previous step's $\Tcf$) together with its parallel-ensemble
 form. The development
@@ -1708,11 +1714,9 @@ lines of work that it does not replace. Virtual-machine logging
 and replay for intrusion analysis began with
 ReVirt~\cite{dunlap2002revirt} (OSDI 2002), which replays a
 compromised guest instruction by instruction below the OS; its
-authors note that an analyst may perturb the replaying machine but
-must then abandon the log --- the perturbed run carries no
-guarantee. Time-travel debugging~\cite{king2005ttvm} and
-hardware-trace reconstruction~\cite{cui2018rept} extend replay as
-inspection. ARCUS~\cite{yagemann2021arcus} (USENIX Security 2021)
+authors note that a perturbed replay must abandon the log --- it
+carries no guarantee. Time-travel debugging~\cite{king2005ttvm} and
+REPT~\cite{cui2018rept} extend replay as inspection. ARCUS~\cite{yagemann2021arcus} (USENIX Security 2021)
 is the closest on the attribution side: it localizes a flagged
 exploit's root cause by posing ``what if'' questions --- symbolic
 satisfiability tests over the recorded control-flow trace,
@@ -1745,8 +1749,7 @@ methodologies with the hypervisor as adversary and no causal
 formalism. EXTp inverts the stance: the VMM is the analyst, the
 intervention is controlled, and the goal is attribution. Their
 interrupt-injection surface motivates extending EXTp's intervention
-surface to \#VC and external interrupt boundaries
-(\S\ref{sec:discussion}).
+surface to \#VC and external interrupt boundaries.
 
 Soloviev and Halpern~\cite{soloviev2021nested} (arXiv 2021) extend
 the Halpern-Pearl framework to capture nested causal statements
@@ -1837,14 +1840,12 @@ A1-modulo violations.
 
 CST v1.0's scope is deliberately narrow (single-VCPU traces, a
 4-tuple plus timing surface, per-event intervention scope); its
-extensions (\S\ref{sec:discussion-scope}) inherit the
-threat-elimination structure and require extended empirical
-antecedents rather than new soundness machinery. The proof's
-conditional core is machine-checked in Isabelle/HOL
-(\S\ref{sec:discussion-isabelle}); the seL4 lifting and the
-calibration/HOL interface remain open, and the conditional theorem
-does not depend on them. In EXTp's discipline, the boundary of
-soundness is named, not avoided.
+extensions (\S\ref{sec:discussion-scope}) require extended empirical
+antecedents, not new soundness machinery. The conditional core is
+machine-checked in Isabelle/HOL (\S\ref{sec:discussion-isabelle});
+the seL4 lifting and the calibration/HOL interface remain open, and
+the conditional theorem does not depend on them. In EXTp's
+discipline, the boundary of soundness is named, not avoided.
 
 % =====================================================================
 \section*{Ethics Considerations}
@@ -1856,7 +1857,7 @@ demonstration uses a controlled synthetic guest modeled on a public
 exploit pattern (CrackArmor confused-deputy cluster) and does not
 disclose any new vulnerability. CVE references appearing in
 \S\ref{sec:related} are used only for related work discussion. The
-counterfactual replay infrastructure operates post-hoc on already-
+counterfactual replay infrastructure operates post-hoc on already
 captured exploit traces and provides no novel attack capability.
 
 % =====================================================================
@@ -1890,7 +1891,7 @@ The full operation set used in CST v1.0:
   reading from the (potentially intervention-modified) VMCS and
   register state.
 \item \texttt{TSCRead} (virtualized) --- monotonic TSC seed
-  delivery (\S\ref{sec:framework}); deterministic by construction.
+  delivery; deterministic by construction.
 \end{itemize}
 
 Each operation's empirical disjointness from $\Kfwk$ is established
@@ -1970,11 +1971,11 @@ restoration semantics is released in the build manifest
 
 This appendix expands the proof sketch of
 Theorem~\ref{thm:cst} (\S\ref{sec:cst}) and provides the inductive
-proof of Proposition~1. The presentation states each step in
+proof of Proposition~\ref{prop:seq}. The presentation states each step in
 standard mathematical notation rather than in Isabelle/HOL syntax,
 for readability; the conditional core of what follows --- the three
 bounding lemmas, the AC2(b) witness construction, the composition
-into Theorem~\ref{thm:cst}, and Proposition~1 --- has been
+into Theorem~\ref{thm:cst}, and Proposition~\ref{prop:seq} --- has been
 mechanized separately, with $A_1$--$A_4$ as hypotheses.
 \S\ref{sec:discussion-isabelle} states precisely what the
 mechanization does and does not establish.
@@ -1996,8 +1997,8 @@ D(\Korig, \Tcf, i) =\ & \big[\text{observable}(\Korig)_i \neq \text{observable}(
 \end{equation*}
 The validity envelope $\mathcal{E}$ is a tuple
 $(\text{instr}, \text{wl-class}, \text{gw-type}, \text{scope},
-\mathcal{S}_\text{in}, \mathcal{S}_\text{out})$ as defined in
-\S\ref{sec:framework}. The four CST antecedents
+\mathcal{S}_\text{in}, \mathcal{S}_\text{out})$, defined here and
+used throughout \S\ref{sec:cst}. The four CST antecedents
 (Table~\ref{tab:assumptions}) restated symbolically:
 
 \begin{itemize}[itemsep=2pt,topsep=2pt,leftmargin=*]
@@ -2079,8 +2080,8 @@ Under A3 (MI per-event timing threshold), the probability that
 the timing clause of $D$ fires
 ($|\Delta_i^{\text{cf}} - \Delta_i^{\text{orig}}| > \Dstar$) at
 any single event $i$ in the absence of intervention is bounded by
-$\arealized$, the empirical false-positive rate calibrated per
-workload class in \S\ref{sec:mi}.
+$\arealized$, the empirical false-positive rate pooled over the
+calibrated workload classes in \S\ref{sec:mi}.
 \end{lemma}
 
 \textit{Proof.} A3's empirical content is the calibrated
@@ -2098,18 +2099,16 @@ is per-event; the family-wise realized rate over a whole trace
 ($\FamRate\%$) is reported in \S\ref{sec:mi} for consumers of
 $\neg D$. The timing-clause coincidence probability at any single
 event $i$ is thus bounded by $\arealized$ for the calibrated workload
-class.
+classes.
 \qed
 
-\textbf{Remark on naming.} The previous draft labeled these as
-\emph{elimination} lemmas; we adopt \emph{bounding} to reflect the
-probabilistic structure of the result. Coincidence is not
-eliminated --- it is bounded above by empirically calibrated
-envelopes ($\epsSOE$ for the structural clause, $\arealized$ for
-the timing clause). Both bounds are propagated into the validity
-envelope $\mathcal{E}$ of every CST claim, making coincidence a
-\emph{reported} rather than \emph{assumed-away} source of
-uncertainty.
+\textbf{Remark on naming.} These are \emph{bounding}, not
+\emph{elimination}, lemmas: coincidence is not eliminated but bounded
+above by empirically calibrated envelopes ($\epsSOE$ for the
+structural clause, $\arealized$ for the timing clause), and both
+bounds are propagated into the validity envelope $\mathcal{E}$ of
+every CST claim --- a \emph{reported}, not an assumed-away, source
+of uncertainty.
 
 \begin{lemma}[Scope-honest restriction over $\mathcal{S}_\text{in}$]
 \label{lem:silent}
@@ -2235,9 +2234,11 @@ at $+\SigNaiveMcyc$M cycles $\approx \SigNaiveRatio \cdot \Dstar$, was correctly
 detected, and the framework reported the \texttt{A1-modulo} flag.
 
 \emph{Case 2: $Z$ manifests as a side-effect below $\Dstar$.}
-MI's $\sigbase$ calibration (\S\ref{sec:mi}) was performed under
-the silent-hook intervention implementation (\S\ref{sec:eval-demo}),
-with the intervention machinery active during baseline sampling.
+MI's $\sigbase$ calibration for the synthetic-guest class
+(\S\ref{sec:eval-demo}) was performed under the silent-hook
+intervention implementation, with the intervention machinery active
+during baseline sampling (the pchase calibrations of \S\ref{sec:mi}
+ran at iter$=0$ with no hook).
 Framework-observable side-effects produced by the silent-hook
 apparatus are therefore included in $\sigbase$ by construction,
 not added as a confounder on top of it. By A3, sub-$\Dstar$
@@ -2257,14 +2258,6 @@ eliminated, and the Q4 modularity experiment
 freedom on $\Kfwk$ observables across all validated intervention
 classes. \qed
 
-\textbf{Remark on naming.} The previous draft labeled this an
-\emph{elimination} lemma; we adopt \emph{bounding modulo A1} to
-reflect the probabilistic-empirical structure. No formal
-contradiction is reached against confounder existence; instead,
-the confounder contribution to attribution uncertainty is bounded
-above by an explicitly calibrated envelope and propagated, in
-keeping with CST's broader epistemic discipline
-(\S\ref{sec:capsep}, A1-modulo flag).
 
 \textbf{Composition into Theorem~\ref{thm:cst}.} Given the three
 lemmas, the four correspondence properties (i)--(iv) in
@@ -2362,8 +2355,8 @@ event $i$ into three disjoint sets:
   \item $\{X\}$: the intervention target (cause variable).
   \item $\mathcal{S}_\text{in}$: framework-observable variables
     within the validated intervention surface, distinct from $X$.
-    Per \S\ref{sec:intervention}, $\mathcal{S}_\text{in}$ is
-    enumerated as part of the validity envelope and includes the
+    $\mathcal{S}_\text{in}$ is enumerated as part of the validity
+    envelope and includes the
     observable 4-tuple components (RIP, exit\_reason, exit\_qual,
     RAX) plus timing.
   \item $\mathcal{S}_\text{out}$: variables outside the validated
@@ -2464,7 +2457,7 @@ condition requires that no proper subset of the cause set is
 sufficient. CST v1.0 takes the cause set to be the singleton
 $\{X\}$ for atomic interventions; AC3 minimality is trivially
 satisfied for singletons. For sequential composition
-(Proposition~1), AC3 is non-trivial and deferred to future work
+(Proposition~\ref{prop:seq}), AC3 is non-trivial and deferred to future work
 (\S\ref{sec:discussion-scope}).
 
 \emph{Remark on $\mathcal{S}_\text{out}$.} Variables in
@@ -2486,9 +2479,9 @@ form, AC2(b) derived rather than asserted, and the residual
 epistemic envelope $\epsSOE + \delta_{\text{A1}} + \arealized$
 reported per-claim. \qed
 
-\subsection{Proof of Proposition~1 (sequential composition)}
+\subsection{Proof of Proposition~\ref{prop:seq} (sequential composition)}
 
-\begin{proof}[Proof of Proposition~1]
+\begin{proof}[Proof of Proposition~\ref{prop:seq}]
 By induction on chain length $n$.
 
 \emph{Base case ($n{=}1$).} The chain
@@ -2541,7 +2534,7 @@ of Theorem~\ref{thm:cst} are machine-checked
 \end{proof}
 
 \textbf{Scope clarification: sequential vs.\ parallel ensembles.}
-Proposition~1 governs \emph{sequential} composition --- chains of
+Proposition~\ref{prop:seq} governs \emph{sequential} composition --- chains of
 interventions applied within the same $\Tcf$ execution, where
 $\text{do}(X_{k+1})$ operates on the state produced by
 $\text{do}(X_k)$. Parallel ensembles of atomic interventions ---
@@ -2568,7 +2561,7 @@ by $n$ times the per-claim maximum and meets that naive bound only
 when every claim fires on the same worst-case clause. A sweep that
 mixes witnesses is therefore strictly tighter: for two claims of
 opposite witness under the within-boot calibration, the aggregate
-is $2.94\%$ against the naive $3.18\%$, and the gap grows linearly
+is $\EnvWithinPair\%$ against the naive $\EnvWithinNaive\%$, and the gap grows linearly
 in the number of mixed-witness claims. Applied to the sweep of
 \S\ref{sec:eval-demo-sweep} --- one structural claim among 32
 silent inputs --- the aggregate envelope is that of a single
@@ -2616,9 +2609,9 @@ HP AC2(b) + union bound & \texttt{ac2b\_holds}, \texttt{w2\_residual\_bound} & p
 Per-witness envelope, regime criterion & \texttt{structural\_bound\_tighter\_iff} & proved \\
 Theorem~\ref{thm:cst} ($\Rightarrow$) & \texttt{cst\_conditional} & proved \\
 Scope-completeness (A2) & \texttt{cst\_scope\_complete}, \texttt{silent\_leak\_only\_out\_of\_scope} & proved \\
-Proposition~1, sequential (trace-threaded) & \texttt{chain\_ok\_iff\_steps}, \texttt{chain\_extend}, \texttt{chain\_conditional} & proved \\
-Proposition~1, parallel ensemble & \texttt{sweep\_three\_level\_bound} & proved \\
-Sweep instantiation (\S\ref{sec:eval-demo}) & \texttt{dead\_sweep\_envelope\_vs\_naive\_swept} & proved \\
+Proposition~\ref{prop:seq}, sequential (trace-threaded) & \texttt{chain\_ok\_iff\_steps}, \texttt{chain\_extend}, \texttt{chain\_conditional} & proved \\
+Proposition~\ref{prop:seq}, parallel ensemble & \texttt{sweep\_three\_level\_bound} & proved \\
+Sweep instantiation (\S\ref{sec:eval-demo-sweep}) & \texttt{dead\_sweep\_envelope\_vs\_naive\_swept} & proved \\
 Within-/cross-boot calibration & \texttt{cst\_withinboot}, \texttt{cst\_crossboot} & model \\
 $\Kverified/\Kextended$ partition & \texttt{k\_partition\_disjoint}, \texttt{k\_partition\_complete} & proved \\
 seL4 external atomicity & \texttt{verified\_no\_fwk\_touch} & assumed \\
@@ -2720,10 +2713,10 @@ and are unchanged; every number below is recomputed by
 \item \emph{Sample count.} boot\_log15 ($L_2$) has $n = \NLTwo$
   post-warmup samples per condition, not $108$; $\sigbase$ was correct.
 \item \emph{Derived values.} Calibrated thresholds $9{,}077 / 7{,}574 /
-  10{,}259$ cycle became $\DstarLOne / \DstarLTwo / \DstarDemo$ cycle;
+  \DstarDemoOld$ cycle became $\DstarLOne / \DstarLTwo / \DstarDemo$ cycle;
   the $L_1$ slope $4.481$ became $\SlopeLOne$ cycle/iter (least squares
-  on condition means); the demonstration ratios $0.033\cdot\Dstar$ and
-  $2{,}595\cdot\Dstar$ became $\SigSilentRatio\cdot\Dstar$ and
+  on condition means); the demonstration ratios $\SigSilentRatioOld\cdot\Dstar$ and
+  $\SigNaiveRatioOld\cdot\Dstar$ became $\SigSilentRatio\cdot\Dstar$ and
   $\SigNaiveRatio\cdot\Dstar$; the witness envelopes of
   Appendix~\ref{app:proofs}, $1.35\%/1.59\%$ (within-boot) and
   $21.41\%/11.62\%$ (cross-boot), became
