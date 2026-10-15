@@ -803,17 +803,21 @@ zero-perturbation samples per workload class and instrument;
 Clopper-Pearson intervals.
 
 \textbf{Claim.} For workload class $L$ under timing instrument $S$,
-there exists a calibrated detection threshold
-$\Dstar = k_n \cdot \sigbase$, $k_n = \sqrt{2}\, z_{1-\alpha/(2n)}$,
-such that the per-event timing clause of $D$,
+there exists a calibrated detection threshold $\Dstar = \hat{k}_n
+\cdot \sigbase$ such that the per-event timing clause of $D$,
 $|\Delta_i^{\text{cf}} - \Delta_i^{\text{orig}}| > \Dstar$, has a
 nominal family-wise false-positive rate of $\alpha$ (nominal $0.05$)
-over the $n$ events of a trace: the $\sqrt{2}$ accounts for the
-difference of two samples, and the quantile divides $\alpha$ among
-the $n$ two-sided comparisons (Bonferroni). $k_n$ is a function of
-$n$ only ($k_{39} = \KThirtyNine$, $k_{100} = \KHundred$, $k_{108} = \KHundredEight$);
-implementations use a rational table of $k_n$ rounded down, which
-is the conservative direction for a negative clause. $\sigbase$ is
+over the $n$ events of a trace. $\hat{k}_n = \lfloor k_n
+2^{16}\rfloor / 2^{16}$ is a rational table value, a function of $n$
+only ($\hat{k}_{39} = \KThirtyNine$, $\hat{k}_{100} = \KHundred$,
+$\hat{k}_{108} = \KHundredEight$); it was generated from the Gaussian
+family-wise quantile $k_n = \sqrt{2}\, z_{1-\alpha/(2n)}$ --- the
+$\sqrt{2}$ for the difference of two samples, the quantile dividing
+$\alpha$ among the $n$ two-sided comparisons (Bonferroni) --- rounded
+down, the conservative direction for a negative clause. The table is
+the definition and is shared verbatim by the analysis scripts, the
+on-box reducer and the mechanization; the formula is its
+motivation. $\sigbase$ is
 the sample standard deviation ($n{-}1$ divisor) of the post-warmup
 timing samples of the pair's own zero-perturbation trace
 ($\text{iter}{=}0$), computed within each experiment.\ifzenodo\footnote{Version~1
@@ -844,7 +848,7 @@ zero-perturbation samples of each of the
 \NullBoots{} boots with per-event samples (pchase and synthetic-guest
 classes) are split into two aligned halves $(T_o, T_o')$ --- a
 zero-intervention pair --- and the clause $\exists i.\,|T_o'[i] -
-T_o[i]| > k_n \sigbase$ is evaluated. Under the Gaussian model the
+T_o[i]| > \hat{k}_n \sigbase$ is evaluated. Under the Gaussian model the
 per-event rate is $\alpha/n$, which pooled over the \NullBoots{} pairs
 is $\NominalEvent\%$ (\NominalExpected{} expected exceedances in
 \NullEvents{} events). Realized, it is $\arealized = \ARealized\%$
@@ -857,7 +861,7 @@ rate --- the fraction of pairs on which the clause fires at all --- is
 $\FamFireKn/\NullBoots = \FamRate\%$ (CI $[\FamLo\%, \FamHi\%]$)
 against the nominal $5\%$; the per-event excess is what produces it.
 
-The Gaussian quantile in $k_n$ is a design choice, not a
+The Gaussian quantile behind $\hat{k}_n$ is a design choice, not a
 distributional assumption. The excess over $\alpha/n$ is a low-side
 tail (runs ${\sim}30$--$40$k cycles \emph{faster} than the mode,
 ${\sim}0.7\%$ of samples) that coincides with no recorded marker
@@ -865,7 +869,7 @@ ${\sim}0.7\%$ of samples) that coincides with no recorded marker
 is recorded, so its source is open. We propagate $\arealized$, not
 $\alpha$, into every envelope (\S\ref{sec:cst}); a consumer of
 $\neg D$ over a whole trace needs the family-wise rate. The cost of
-$k_n$ is sensitivity: a Gaussian mean shift of $\ShiftHalf\sigma$
+$\hat{k}_n$ is sensitivity: a Gaussian mean shift of $\ShiftHalf\sigma$
 fires the clause on half of the traces of $n{=}\NLOne$; empirically
 every sweep condition shifted by ${\geq}2\sigma$ fires
 (\S\ref{sec:eval-meas}).
@@ -1413,7 +1417,7 @@ demonstration (\S\ref{sec:eval-demo}).
   \end{tabular}
 
   \vspace{0.3em}
-  \footnotesize{$\Dstar = k_n\sigbase$, $n = \NLOne, \NLTwo, \NDemo$.
+  \footnotesize{$\Dstar = \hat{k}_n\sigbase$, $n = \NLOne, \NLTwo, \NDemo$.
   FPR: per-event exceedance of the pair-difference clause on
   zero-intervention pairs, $^{\dagger}$pooled over all \NullBoots{}
   boots (CI $[\ARealizedLo\%, \ARealizedHi\%]$; per-log values and the
@@ -2018,7 +2022,7 @@ used throughout \S\ref{sec:cst}. The four CST antecedents
 \item \textbf{A3 (Confounder bound).} Per-event timing fluctuations
   $|\Delta_i^{\text{cf}} - \Delta_i^{\text{orig}}| \le \Dstar$ under
   no intervention, with realized per-event false-positive rate
-  $\arealized$ ($\ARealized\%$ at $\Dstar = k_n\sigbase$; MI \S\ref{sec:mi}).
+  $\arealized$ ($\ARealized\%$ at $\Dstar = \hat{k}_n\sigbase$; MI \S\ref{sec:mi}).
 \item \textbf{A4 (Replay determinism).} In the absence of
   intervention, $\Korig$ and any fresh-boot replay $R$ satisfy
   $\forall i:\ \text{observable}(\Korig)_i = \text{observable}(R)_i$
@@ -2089,7 +2093,7 @@ per-event FPR: $\Pr[|\Delta_i^{\text{cf}} -
 \arealized$, with $\arealized = \ARealized\%$ (Clopper-Pearson $95\%$
 CI $[\ARealizedLo\%, \ARealizedHi\%]$) measured with this very clause
 on \NullEvents{} event pairs from \NullBoots{} zero-intervention
-traces at $\Dstar = k_n \sigbase$ (\S\ref{sec:mi}). The realized rate
+traces at $\Dstar = \hat{k}_n \sigbase$ (\S\ref{sec:mi}). The realized rate
 is about $\RealizedOverNominal\times$ the Gaussian nominal per-event
 rate $\alpha/n$ ($\NominalEvent\%$ pooled over the same traces),
 because the empirical tail is heavier than Gaussian; the bound is
@@ -2707,8 +2711,8 @@ and are unchanged; every number below is recomputed by
   \S\ref{sec:mi}, that threshold exceeds on $\ExceedOld\%$ of events
   (Gaussian prediction $2\Phi(-1.645/\sqrt2) = \GaussOld\%$) and fires
   on \FamFireOld{} of \NullBoots{} traces, so $\neg D$ was unattainable
-  on any trace. Version~2 uses the family-wise $k_n$ of \S\ref{sec:mi}
-  and reports the realized rates it produces.
+  on any trace. Version~2 uses the family-wise table value $\hat{k}_n$
+  of \S\ref{sec:mi} and reports the realized rates it produces.
 \item \emph{Sample count.} boot\_log15 ($L_2$) has $n = \NLTwo$
   post-warmup samples per condition, not $108$; $\sigbase$ was correct.
 \item \emph{Derived values.} Calibrated thresholds $9{,}077 / 7{,}574 /
