@@ -824,8 +824,8 @@ false-positive rates; Appendix~\ref{app:erratum} lists the corrections.}\fi
 (LFENCE-sandwich-RDTSC) serializes instruction retirement before the
 TSC read, adding ${\sim}3\times$ noise over $S_2$ (bare RDTSC) but
 eliminating out-of-order TSC read artifacts. $S_1$ served the $L_1$,
-synthetic-guest and demonstration calibrations, $S_2$ the $L_2$ one;
-instruments are never mixed within a pair.
+synthetic-guest and demonstration calibrations, $S_2$ the $L_2$ one
+(Table~\ref{tab:meas}).
 
 \textbf{Calibrated values.} $L_1$-pchase under $S_1$ (boot\_log12,
 iter$=0$, $n{=}\NLOne$): $\sigbase = \SigLOne$ cycle, slope $b =
@@ -1107,8 +1107,8 @@ null modem cable) provides out-of-band I/O during bare-metal runs.
 No network connectivity is present during any experiment.
 
 Two timing instruments are used, $S_1$ (LFENCE-sandwich-RDTSC) and
-$S_2$ (bare RDTSC); Table~\ref{tab:meas} states which calibration
-used which. EXTp's VMM is compiled with gcc 12.3
+$S_2$ (bare RDTSC), never mixed within a pair (Table~\ref{tab:meas}).
+EXTp's VMM is compiled with gcc 12.3
 at \texttt{-O2} (build hash in Appendix~\ref{app:build}).
 
 \subsection{Privilege-Check-Bypass Demonstration}\label{sec:eval-demo}
@@ -1715,14 +1715,16 @@ and replay for intrusion analysis began with
 ReVirt~\cite{dunlap2002revirt} (OSDI 2002), which replays a
 compromised guest instruction by instruction below the OS; its
 authors note that a perturbed replay must abandon the log --- it
-carries no guarantee. Time-travel debugging~\cite{king2005ttvm} and
-REPT~\cite{cui2018rept} extend replay as inspection. ARCUS~\cite{yagemann2021arcus} (USENIX Security 2021)
+carries no guarantee --- and time-travel debugging~\cite{king2005ttvm}
+and REPT~\cite{cui2018rept} extend replay as inspection. ARCUS~\cite{yagemann2021arcus} (USENIX Security 2021)
 is the closest on the attribution side: it localizes a flagged
-exploit's root cause by posing ``what if'' questions --- symbolic
-satisfiability tests over the recorded control-flow trace,
-``without needing concrete inputs or re-execution'' --- so it asks
-whether a vulnerable state \emph{could} have been reached, and its
-authors state that completeness cannot be guaranteed. EXTp asks
+exploit's root cause by posing ``what if'' questions --- at the
+state preceding the corruption, whether an alternative path's
+constraints contradict the compromised state, a satisfiability
+question answered symbolically over the recorded control-flow
+trace ``without needing concrete inputs or re-execution'' --- and
+its authors state that, being built from a single path,
+completeness cannot be guaranteed. EXTp asks
 the question neither line answers: under which stated conditions
 does a divergence observed on a counterfactual re-execution
 \emph{soundly} attribute the outcome to the intervened input.
@@ -1732,11 +1734,10 @@ security applies structural causal models with re-execution to
 LLM-agent trajectories~\cite{shah2026car} without a soundness
 theorem; Chakraborty, Caulfield and
 Pym~\cite{chakraborty2025causality} give a Halpern-Pearl-aligned
-intervention logic for system \emph{models}, with no replay or
-measurement layer. On seL4 itself, Cock et
-al.~\cite{cock2014lastmile} measured timing channels and found the
-verification silent on timing; MI is EXTp's answer at the
-measurement layer.
+intervention logic for system \emph{models}, without a replay or
+measurement layer. Cock et al.~\cite{cock2014lastmile} measured
+seL4's timing channels and found the verification silent on
+timing; MI answers at the measurement layer.
 
 CacheWarp~\cite{zhang2024cachewarp} (USENIX Security 2024) reverts
 modified cache lines on AMD SEV-ES/SNP to produce controlled
@@ -1765,7 +1766,6 @@ the gap that EXTp closes.
 
 \subsection{Hypervisor Exploit Surface}
 
-Recent hypervisor CVEs map onto EXTp's scope boundaries.
 CVE-2024-21305~\cite{tandasat2024hvci} (Hyper-V HVCI bypass via
 non-secure VMCS configuration) has the divergent-path structure of
 EXTp's privilege-check-bypass demonstration (\S\ref{sec:eval-demo});
@@ -1838,8 +1838,7 @@ intervention hooks produce identical SOE-clause divergence but
 bifurcate on the timing clause --- the framework detecting its own
 A1-modulo violations.
 
-CST v1.0's scope is deliberately narrow (single-VCPU traces, a
-4-tuple plus timing surface, per-event intervention scope); its
+CST v1.0's scope is deliberately narrow (\S\ref{sec:threat}); its
 extensions (\S\ref{sec:discussion-scope}) require extended empirical
 antecedents, not new soundness machinery. The conditional core is
 machine-checked in Isabelle/HOL (\S\ref{sec:discussion-isabelle});
