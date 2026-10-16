@@ -859,7 +859,9 @@ $\LogEightExceed/\LogEightEvents = \LogEightPct\%$ and boot\_log12
 $\LogTwelveExceed/\LogTwelveEvents = \LogTwelvePct\%$. The family-wise
 rate --- the fraction of pairs on which the clause fires at all --- is
 $\FamFireKn/\NullBoots = \FamRate\%$ (CI $[\FamLo\%, \FamHi\%]$)
-against the nominal $5\%$; the per-event excess is what produces it.
+against the nominal $5\%$; the per-event excess is what produces it;
+equivalently, $\TraceSilentKn/\NullBoots$ traces ($\TraceSilentRate\%$,
+CI $[\TraceSilentLo\%, \TraceSilentHi\%]$) show no exceedance at all.
 
 The Gaussian quantile behind $\hat{k}_n$ is a design choice, not a
 distributional assumption. The excess over $\alpha/n$ is a low-side
@@ -1233,12 +1235,15 @@ intervention signature is
 \overline{T_\text{cf}} - \overline{T_\text{orig}} = +\SigSilent \text{ cycle} \approx \SigSilentRatio \cdot \Dstar
 \end{equation*}
 (${\approx}\SigSilentNs$~ns at 4.9~GHz; one extra \texttt{WriteRegisters}
-syscall accounts for this magnitude). Per event, \SilentExceed{} of
-\NDemo{} pairs exceed $\Dstar$ (CI $[\SilentExceedLo\%,
-\SilentExceedHi\%]$), consistent with $\arealized$ and with no
-systematic shift: the silent hook leaves the timing surface at its
-noise floor, the SOE clause is the sole \emph{systematic} divergence
-signal, and the A1-modulo bound holds at paper-grade $N$
+syscall accounts for this magnitude). Per event (one aligned
+$(T_\text{orig}[i], T_\text{cf}[i])$ sample pair per event, one trace),
+\SilentExceed{} of \NDemo{} events exceed $\Dstar$ (CI
+$[\SilentExceedLo\%, \SilentExceedHi\%]$), consistent with $\arealized$
+--- at trace level $\TraceSilentRate\%$ of zero-intervention traces show
+none (\S\ref{sec:mi}), so one or two exceedances lie within the null ---
+and with no systematic shift: the silent hook leaves the timing surface
+at its noise floor, the SOE clause is the sole \emph{systematic}
+divergence signal, and the A1-modulo bound holds at paper-grade $N$
 (Figure~\ref{fig:demo-silent}).
 
 \paragraph{Naïve hook (counter-demonstration).} An earlier
