@@ -42,6 +42,10 @@
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, fit, calc, shapes.geometric}
 \usepackage{hyperref}
+% 2026-10-25: PDF metadata for indexers; author only in the preprint build (submission stays anonymous)
+\hypersetup{pdftitle={EXTp: A Soundness Theorem for Counterfactual Exploit Replay on Formally Verified Microkernels},
+  pdfkeywords={counterfactual replay, exploit analysis, seL4, Isabelle/HOL, causal inference, microarchitectural side channels}}
+\ifzenodo\hypersetup{pdfauthor={Utku Erol}}\fi
 \usepackage{cleveref}
 
 % --- THEOREM ENVIRONMENTS ---
@@ -94,8 +98,10 @@
 
 \maketitle
 \ifzenodo
-\begingroup\renewcommand{\thefootnote}{}\footnotetext{Version~2,
-October 2026, doi:10.5281/zenodo.23403670. Supersedes version~1
+\begingroup\renewcommand{\thefootnote}{}\footnotetext{Version~3,
+October 2026, doi:10.5281/zenodo.23575086; concept
+doi:10.5281/zenodo.22849590 resolves to the latest version. Supersedes
+version~2 (October 2026, doi:10.5281/zenodo.23403670) and version~1
 (September 2026, doi:10.5281/zenodo.22849591); Appendix~\ref{app:erratum}
 lists the corrections.}\endgroup
 \fi
@@ -153,8 +159,9 @@ method.
 The theoretical machinery to close these gaps exists. Pearl's
 structural causal model~\cite{pearl2009causality} defines the
 $\dox{x'}$ intervention operator and the axioms --- modularity,
-faithfulness, effectiveness --- that make causal attribution provably
-sound. Halpern and Pearl's actual-causation
+effectiveness, and the faithfulness condition of Spirtes, Glymour and
+Scheines~\cite{spirtes2000causation} (Pearl's stability) --- that make
+causal attribution provably sound. Halpern and Pearl's actual-causation
 conditions~\cite{halpern2005causes} specify precisely when an
 observed outcome is attributable to a named cause. Yet this apparatus
 has not been applied to exploit analysis. The obstacle is structural:
@@ -189,10 +196,11 @@ seL4~\cite{klein2009sel4} virtual machine monitor. Its Counterfactual
 Soundness Theorem (CST) proves that, under the formal assumptions
 grounded in EXTp's observable properties, replay-based causal
 attribution satisfies Pearl's effectiveness and composition axioms
-(modularity realized by CapSep, faithfulness subsumed by SOE) and
-Halpern-Pearl's AC1 and AC2 actual-causation conditions --- with
-divergence points (irreversibility inapplicable; determinism strictly
-stronger than faithfulness) declared explicitly rather than elided.
+(modularity realized by CapSep, faithfulness replaced by SOE's
+determinism) and Halpern-Pearl's AC1 and AC2 actual-causation
+conditions --- with divergence points (irreversibility inapplicable;
+faithfulness not implied by determinism but made unnecessary by it)
+declared explicitly rather than elided.
 The result is a system where ``$\dox{x'}$ caused divergence $D$ at
 event $i$'' is not an analyst's intuition but a formally admissible
 claim within an enumerated epistemic envelope.
@@ -206,10 +214,10 @@ this follows from seL4's Isabelle/HOL proof harness; for extended
 VT-x operations, it is empirically bounded with Clopper-Pearson
 confidence. \textbf{Strong Observational Equivalence (SOE)}
 establishes trajectory-level replay determinism
-($\scoreS = 1.0000$, $N{=}34$ cross-boot trials), a property strictly
-stronger than Pearl's probabilistic faithfulness and sufficient to
-rule out coincidence as an alternative explanation for observed
-divergence. \textbf{Measurement Interference (MI)} derives a
+($\scoreS = 1.0000$, $N{=}34$ cross-boot trials), a property that
+takes the place of probabilistic faithfulness rather than implying
+it, and is sufficient to rule out coincidence as an alternative
+explanation for observed divergence. \textbf{Measurement Interference (MI)} derives a
 calibrated timing detection threshold $\Dstar = k_n \cdot
 \sigbase$, family-wise over the $n$ events of a trace, with
 empirically realized per-event false-positive rate $\ARealized\%$
@@ -223,7 +231,7 @@ This paper makes four contributions.
 bare-metal seL4 with four intervention classes and cross-boot replay
 stability $\scoreS = 1.0000$ over $N{=}34$ trials.
 \textbf{(C2)} Three independently verifiable observable properties
---- CapSep (modularity axiom), SOE (faithfulness/determinism), MI
+--- CapSep (modularity axiom), SOE (determinism in place of faithfulness), MI
 (confounder boundedness) --- each making falsifiable claims about a
 distinct dimension of the replay machinery.
 \textbf{(C3)} CST: the first formal soundness theorem for
@@ -277,7 +285,11 @@ while $\Kverified$ in full is the larger L4.verified-covered
 API. Their external atomicity --- the property that state
 transitions are observable as single steps from outside the
 kernel --- is established by the Isabelle
-proof~\cite{klein2009sel4}. $\Kextended \supseteq \{\text{MapEPT},
+proof~\cite{klein2009sel4} for seL4's verified configurations. The
+kernel EXTp runs, x86-64 with VT-x enabled, is not one of them
+(\S\ref{sec:threat}); for $\Kverified$ the property is therefore
+inherited as an assumption about a neighbouring configuration, not
+as a theorem about the running binary. $\Kextended \supseteq \{\text{MapEPT},
 \text{Unmap}, \text{WriteVMCS}, \text{ReadVMCS}\}$ (full enumeration
 in Appendix~\ref{app:kextended}) comprises the x86-64 VT-x extension
 operations that EXTp's intervention machinery uses directly; these
@@ -286,7 +298,8 @@ are empirically bounded (Clopper-Pearson one-sided $95\%$ upper bound
 $\leq \EpsCross\%$ at $N{=}34$ cross-boot; the CapSep-level bound
 $\leq \EpsWithin\%$ at $N{=}998$
 is detailed in \S\ref{sec:capsep}). The distinction matters: CapSep's
-formal guarantee for $\Kverified$ is unconditional; for $\Kextended$
+formal guarantee for $\Kverified$ is unconditional relative to that
+configuration assumption; for $\Kextended$
 it is empirically conditioned and subject to Q4 validation
 (\S\ref{sec:capsep}).
 
@@ -386,9 +399,16 @@ EXTp's trusted computing base (TCB) comprises the seL4 microkernel,
 the EXTp VMM implementation, and the underlying Intel VT-x hardware.
 Specifically:
 \begin{itemize}
-\item \textbf{seL4}: functional correctness and capability integrity
-  as established by the L4.verified
-  proof~\cite{klein2009sel4,klein2014sel4}.
+\item \textbf{seL4}: functional correctness as established by the
+  L4.verified proof~\cite{klein2009sel4,klein2014sel4} for the
+  verified \texttt{X64} configuration. Two scope limits apply and are
+  assumed rather than proved. The verified \texttt{X64} configuration
+  excludes VT-x hypervisor mode, while EXTp's kernel is built with
+  VT-x enabled; and seL4's integrity and confidentiality proofs exist
+  for the ARM, AArch64 and RISC-V configurations, not for x86-64.
+  Capability integrity on this platform is therefore an assumption
+  about the kernel, carried into CapSep as such (\S\ref{sec:capsep})
+  and bounded empirically only for $\Kextended$.
 \item \textbf{Intel VT-x hardware}: VM-exit semantics and VMCS field
   correctness. Microcode revision \texttt{0x3e} (Alder Lake,
   pre-Downfall); post-Downfall microcode alters $\sigbase$
@@ -658,8 +678,9 @@ rather than a claim (\S\ref{sec:cst}).
 \subsection{Capability Separation (CapSep)}\label{sec:capsep}
 
 \textbf{Proof structure.} CapSep is a hybrid structural-empirical
-claim: structurally proven on $\Kverified$ by inheritance from
-L4.verified, and empirically bounded on $\Kextended$ via
+claim: structurally argued on $\Kverified$ by inheritance from
+L4.verified, under the configuration assumption of
+\S\ref{sec:threat}, and empirically bounded on $\Kextended$ via
 Clopper-Pearson confidence intervals on observed zero-failure trials.
 
 \textbf{Claim.} $\Kint \cap \Kfwk = \emptyset$, where $\Kint$ is the
@@ -672,14 +693,15 @@ capability registers not under intervention authority).
 different strength on two operation classes introduced in
 \S\ref{sec:background}:
 
-For $\Kverified$ operations, disjointness follows from seL4's
-L4.verified proof: the Isabelle/HOL functional correctness theorem
+For $\Kverified$ operations, disjointness is inherited from seL4's
+L4.verified proof, assumed to carry over to EXTp's VT-x-enabled build
+(\S\ref{sec:threat}): the Isabelle/HOL functional correctness theorem
 establishes external atomicity --- that every capability operation
 in $\Kverified$ completes as an observable single step with no
 intermediate state exposed. Because the intervention machinery's
 authority set is a subset of $\Kextended$ and $\Kverified \cap
 \Kextended = \emptyset$, authority disjointness on $\Kverified$ is
-unconditional.
+unconditional relative to that assumption.
 
 For $\Kextended$ operations (the VT-x extension API enumerated in
 Appendix~\ref{app:kextended}), disjointness is empirically bounded.
@@ -783,16 +805,18 @@ $N$-trial recalibration; deferred (\S\ref{sec:discussion}).
 \textbf{Pearl role.} SOE underwrites two assumptions: A4 (replay
 determinism) and, through its 4-tuple surface definition, A2
 (observable surface coverage) --- both formally stated in
-\S\ref{sec:cst}. SOE's trajectory-level reproducibility is
-\emph{strictly stronger} than Pearl's probabilistic faithfulness
-axiom: faithfulness requires that conditional independences in an
-observed distribution correspond to d-separations in the underlying
-DAG, which presupposes a probability distribution. Under SOE's
-deterministic replay, there is no distribution --- trajectories are
-reproduced exactly, making probabilistic CI testing unnecessary. A4
-therefore inherits a property stronger than faithfulness requires,
-which is why CST's proof sketch (\S\ref{sec:cst}) does not appeal to
-CI testing at any step.
+\S\ref{sec:cst}. SOE's trajectory-level reproducibility does not imply the
+faithfulness condition~\cite{spirtes2000causation}, and we do not
+claim that it does: faithfulness requires that the conditional
+independences of an observed distribution be exactly those entailed
+by the DAG, which presupposes a probability distribution, and
+deterministic relations are the standard source of its violations.
+Under SOE's deterministic replay there is no distribution ---
+trajectories are reproduced exactly, and conditional-independence
+testing is replaced by trajectory equality. A4 therefore substitutes
+for faithfulness rather than strengthening it, which is why CST's
+proof sketch (\S\ref{sec:cst}) does not appeal to CI testing at any
+step.
 
 \subsection{Measurement Interference (MI)}\label{sec:mi}
 
@@ -1057,8 +1081,8 @@ conditions.
   Effectiveness   & Intervention (\S\ref{sec:intervention})       & Holds            & Direct \\
   Composition     & Inherits A1 modularity         & Holds mod A1     & Relaxed-$\delta_{\text{A1}}$ \\
   Reversibility   & Linear-time exec.              & Inapplicable     & Inapplicable \\
-  do-calc. R1--3  & Degenerate-determ.             & Hold             & Stronger \\
-  Faithfulness    & Subsumed by A4 (SOE)           & Subsumed         & Stronger \\
+  do-calc. R1--3  & Degenerate-determ.             & Hold             & Substituted \\
+  Faithfulness    & Replaced by A4 (SOE)           & Replaced         & Substituted \\
   HP AC1          & $D$ in $\Tcf$ at $i$           & Direct           & Direct \\
   HP AC2(a)       & $D$ differs in $\Korig$        & Direct           & Direct \\
   HP AC2(b)       & Witness fix.\ via fresh-boot   & Direct (App.~\ref{app:proofs}) & Direct \\
@@ -1071,12 +1095,13 @@ The \emph{Relationship} column in Table~\ref{tab:pearl} makes
 explicit the four distinct ways in which CST's apparatus relates
 to Pearl's classical framework. \emph{Direct} entries hold as
 straightforward correspondences without modification
-(effectiveness; HP AC1, AC2(a), AC2(b)). \emph{Stronger} entries
-are properties that EXTp's deterministic setting satisfies in a
-form strictly stronger than Pearl's probabilistic original ---
-faithfulness is subsumed by SOE's trajectory-level determinism
-(\S\ref{sec:soe}), and do-calculus rules R1--R3 reduce to
-trajectory equality testing under A4. \emph{Relaxed-$\delta_{\text{A1}}$}
+(effectiveness; HP AC1, AC2(a), AC2(b)). \emph{Substituted} entries
+are properties whose probabilistic content has no object in EXTp's
+deterministic setting and is replaced by trajectory equality ---
+faithfulness, which determinism does not imply, has nothing to
+constrain when there is no distribution (\S\ref{sec:soe}), and
+do-calculus rules R1--R3 reduce to trajectory equality testing under
+A4. \emph{Relaxed-$\delta_{\text{A1}}$}
 entries are properties that hold in an approximate form bounded by
 CapSep's empirical envelope (\S\ref{sec:capsep}): modularity and
 composition are established to within $\delta_{\text{A1}}$ rather
@@ -1680,7 +1705,12 @@ capability-model formalization rather than extending verified
 theorems; it is a multi-year effort, and even completed it would
 discharge $A_1$ only for $\Kverified$, since $\Kextended$ lies
 outside L4.verified by construction (\S\ref{sec:background}) and
-stays empirical.
+stays empirical. Before any lifting, the configuration gap of
+\S\ref{sec:threat} would have to close: a port to seL4's verified
+AArch64 configuration, whose kernel runs at EL2 and which carries
+functional-correctness, integrity and information-flow proofs, would
+place $\Kverified$ under the proofs rather than under an assumption.
+That port is future work.
 
 Second, an \emph{empirical-to-structural lifting} question. $A_4$'s
 content is a probability bound ($\scoreS{=}1.0000$ observed;
@@ -2304,10 +2334,9 @@ Two observations on this relaxation:
     values, per-variable perturbation $\leq \Dstar$, per-variable
     violation mass $\leq \delta_{\text{A1}}$) and its strict-form
     recovery are machine-checked (\S\ref{sec:discussion-isabelle}).
-  \item \emph{Asymmetry vs.\ faithfulness.} Where CST satisfies a
-    \emph{stronger} form of faithfulness (subsumed by SOE's
-    trajectory determinism, \S\ref{sec:cst}), it satisfies a
-    \emph{relaxed} form of composition. This asymmetry is
+  \item \emph{Asymmetry vs.\ faithfulness.} Where CST replaces
+    faithfulness by SOE's trajectory determinism (\S\ref{sec:cst}),
+    it satisfies a \emph{relaxed} form of composition. This asymmetry is
     unavoidable: composition operates on framework-internal state
     $W \in \Kfwk$, governed by $\Kextended$ operations whose
     disjointness from $\Kint$ is empirically (not structurally)
@@ -2697,9 +2726,36 @@ full responsibility for the veracity and correctness of all
 material in this paper.
 
 \ifzenodo
-\section{Erratum to Version 1}\label{app:erratum}
-Version~1 of this paper (September 2026, doi:10.5281/zenodo.22849591)
-contained the following errors; this version is doi:10.5281/zenodo.23403670. All proofs are parametric in $\Dstar$
+\section{Erratum to Versions 1 and 2}\label{app:erratum}
+\noindent\textbf{Correction in version~3.} Versions~1 and~2 listed seL4's
+``functional correctness and capability integrity as established by
+the L4.verified proof'' in the trusted computing base and described
+CapSep on $\Kverified$ as structurally proven by inheritance. This
+overstated the scope of the proofs for the platform used. seL4's
+verified \texttt{X64} configuration covers C-level functional
+correctness without VT-x hypervisor mode, and the integrity and
+confidentiality proofs exist for the ARM, AArch64 and RISC-V
+configurations only; EXTp's kernel is built with VT-x enabled.
+Version~3 states the L4.verified results as an assumption about a
+neighbouring configuration (\S\ref{sec:background},
+\S\ref{sec:threat}, \S\ref{sec:capsep}) and names the AArch64 port
+that would remove the assumption (\S\ref{sec:discussion-isabelle}).
+Versions~1 and~2 also described SOE's replay determinism as
+``strictly stronger than Pearl's probabilistic faithfulness'' and
+marked faithfulness and the do-calculus rules as \emph{Stronger} in
+Table~\ref{tab:pearl}. Determinism does not imply faithfulness (the
+condition is due to Spirtes, Glymour and Scheines; deterministic
+relations are its standard counterexamples); in a deterministic
+replay there is no distribution for it to constrain. Version~3 says
+that SOE \emph{replaces} faithfulness and marks the entries
+\emph{Substituted}. No number, proof or mechanised fact changes;
+the Isabelle development never mentions faithfulness.
+
+
+\noindent\textbf{Corrections in version~2.} Version~1 of this paper
+(September 2026, doi:10.5281/zenodo.22849591) contained the following
+errors, corrected in version~2 (October 2026,
+doi:10.5281/zenodo.23403670). All proofs are parametric in $\Dstar$
 and are unchanged; every number below is recomputed by
 \texttt{gen\_numbers.py} from the raw logs shipped with the artifact.
 \begin{enumerate}

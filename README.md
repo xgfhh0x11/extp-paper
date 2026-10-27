@@ -12,9 +12,19 @@ replay on top of a formally verified microkernel (seL4).
 ## Published preprint
 
 - **Preprint PDF:** [`SUBMISSION_READY_NDSS2028/extp.pdf`](SUBMISSION_READY_NDSS2028/extp.pdf)
-- **Zenodo DOI:** [10.5281/zenodo.22849591](https://doi.org/10.5281/zenodo.22849591) (CC BY 4.0)
-- **Self-contained artifact:** https://github.com/heavyisthecrown0x11/extp-artifact
+- **Zenodo DOI (all versions):** [10.5281/zenodo.22849590](https://doi.org/10.5281/zenodo.22849590) (CC BY 4.0); resolves to the latest version. Current: version 3, 2026-10-22, [10.5281/zenodo.23575086](https://doi.org/10.5281/zenodo.23575086).
+- **Self-contained artifact:** https://github.com/xgfhh0x11/extp-artifact
   (Isabelle/HOL mechanization, measurement summaries, seL4/EXTp VMM boot images, figures)
+
+## Versions
+
+| Version | Date | DOI | What changed |
+|---|---|---|---|
+| 3 | 2026-10-22 | [10.5281/zenodo.23575086](https://doi.org/10.5281/zenodo.23575086) | seL4's verified `X64` configuration excludes VT-x hypervisor mode and x86-64 has no integrity/confidentiality proofs, so the L4.verified results are now stated as an assumption about a neighbouring configuration (Sections II, III, V, VII and the Erratum appendix). Artifact bundle unchanged. |
+| 2 | 2026-10-15 | [10.5281/zenodo.23403670](https://doi.org/10.5281/zenodo.23403670) | False-positive rates re-measured with the lemma's own pair-difference clause; family-wise threshold (see the artifact's `CHANGELOG.md`). |
+| 1 | 2026-09-19 | [10.5281/zenodo.22849591](https://doi.org/10.5281/zenodo.22849591) | First preprint. |
+
+`SUBMISSION_READY_NDSS2028/` holds the version-3 source and PDF.
 
 ## Contents
 
