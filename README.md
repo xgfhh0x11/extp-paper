@@ -1,6 +1,6 @@
 # EXTp — A Soundness Theorem for Counterfactual Exploit Replay on Formally Verified Microkernels
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23403670.svg)](https://doi.org/10.5281/zenodo.23403670)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22849590.svg)](https://doi.org/10.5281/zenodo.22849590)
 
 Utku Erol, Independent Researcher — utkuerol71@gmail.com
 
